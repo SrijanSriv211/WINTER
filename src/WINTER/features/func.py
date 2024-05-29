@@ -10,9 +10,6 @@ def play_video(title):
 def play_music(title):
     pass
 
-def playgames(name):
-    pass
-
 # https://github.com/Ankit404butfound/PyWhatKit/blob/master/pywhatkit/misc.py
 def youtube(topic):
     url = f"https://www.youtube.com/results?q={topic}"
