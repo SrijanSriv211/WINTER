@@ -15,7 +15,7 @@ class ExecEngine:
         self.func_dict = {}
 
     def loadAOs(self):
-        print(f"start \"{os.path.join(get_bin_path(), 'AOs\\AOs.exe')}\"")
+        os.startfile(os.path.join(get_bin_path(), 'AOs\\AOs.exe'))
 
     # Map all the functions corresponding to their respective skills.
     def load(self):
