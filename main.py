@@ -1,11 +1,10 @@
-from src.WINTER.features.features import Features
-from src.vendor.GATw import alphabet
+from src.vendor.GATw import RegexTokenizer, one_hot_encoding, rnn
 
-model = alphabet.classification.Sample("bin\\skills.pth")
-feature = Features("data\\skills.json")
+tokenizer = RegexTokenizer()
+tokenizer.load("bin\\models\\tok2k.model") # loads the model back from disk
 
-model.load()
-feature.load()
+rs = rnn.sample("bin\\models\\skills.pth")
+rs.load()
 
 test = [
     "please make the volume one hundred percent.",
@@ -44,7 +43,8 @@ test = [
 ]
 
 for i in test:
-    print(i)
-
-    feature.execute(i, model.predict(i), False)
-    print("-"*100)
+    print(f"> {i}")
+    x = one_hot_encoding(tokenizer.encode(i), list(tokenizer.vocab.keys()))
+    tag, conf = rs.predict(x, rs.model_data["classes"])
+    print(tag, conf)
+    print()
