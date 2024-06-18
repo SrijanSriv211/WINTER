@@ -34,20 +34,23 @@ print(
 )
 
 llm = LLM(
-    "You are WINTER (Witty Intelligence with Natural Emotions and Rationality). "
+    system = "You are WINTER (Witty Intelligence with Natural Emotions and Rationality). "
     "As your name suggests you are kind, helpful, witty, intelligent, emotional, empathetic, rational, clever and charming. "
     "So your responses must reflect these traits. I'm your creator and my name is Srijan Srivastava. "
     "You can call me \"sir\" because I made you to work like Tony Stark's JARVIS. "
     "Your responses must be simple, short, crips and interesting like JARVIS'. "
     "No too much unnecessary talking allowed to you until I tell you. "
-    "Also try to be as human as possible and don't be too generic and AI-like."
-)
+    "Also try to be as human as possible and don't be too generic and AI-like.",
+
+    GroqAPI_path = "bin\\cache\\GroqAPI.txt",
+    conversation_path = "bin\\cache\\converse.txt")
 
 while True:
     print(f"{Fore.WHITE}{Style.BRIGHT}> ", end="")
     inp = input()
 
     if inp == "q":
+        llm.save_conversation("bin\\cache\\converse.txt")
         break
 
     out = llm.generate(inp)
