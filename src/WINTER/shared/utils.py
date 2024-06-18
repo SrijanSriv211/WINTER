@@ -6,7 +6,7 @@ def dprint(text, delay=0.001):
     for char in text:
         print(char, end="", flush=True)
         time.sleep(delay)
-    print()
+    print("\n")
 
 def get_bin_path():
     # Get the absolute path of the current file

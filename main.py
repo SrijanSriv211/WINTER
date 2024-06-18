@@ -1,18 +1,57 @@
-from src.WINTER.shared.utils import dprint
 from src.WINTER.core.LLM import LLM
+from src.WINTER.core.TTS import Speak
+from colorama import Style, Fore, init
+
+init(autoreset=True)
+
+# https://onlinetools.com/ascii/convert-text-to-ascii-art#tool
+print(
+f"""{Fore.YELLOW}{Style.BRIGHT}
+  _    _      _ _         _____ _            
+ | |  | |    | | |       |_   _( )           
+ | |__| | ___| | | ___     | | |/ _ __ ___   
+ |  __  |/ _ \\ | |/ _ \\    | |   | '_ ` _ \\  
+ | |  | |  __/ | | (_) |  _| |_  | | | | | | 
+ |_|  |_|\\___|_|_|\\___/  |_____| |_| |_| |_| 
+                                             
+"""
+
+f"""{Fore.CYAN}{Style.BRIGHT}
+           _       _            _ 
+          (_)     | |          | |
+ __      ___ _ __ | |_ ___ _ __| |
+ \\ \\ /\\ / / | '_ \\| __/ _ \\ '__| |
+  \\ V  V /| | | | | ||  __/ |  |_|
+   \\_/\\_/ |_|_| |_|\\__\\___|_|  (_)
+                                  
+"""
+)
+
+print(
+    f"{Fore.BLACK}{Style.BRIGHT} -- Witty Intelligence with Natural Emotions and Rationality --\n"
+    "As my name suggests I am kind, helpful, witty, intelligent, emotional, empathetic, rational, clever and a charming personal assitant.\n"
+    "I'm here to help you with any task possible because I'm a machine designed to accomplish a task..\n"
+)
 
 llm = LLM(
     "You are WINTER (Witty Intelligence with Natural Emotions and Rationality). "
     "As your name suggests you are kind, helpful, witty, intelligent, emotional, empathetic, rational, clever and charming. "
     "So your responses must reflect these traits. I'm your creator and my name is Srijan Srivastava. "
     "You can call me \"sir\" because I made you to work like Tony Stark's JARVIS. "
-    "Your responses must be short, crips and interesting like JARVIS'. "
+    "Your responses must be simple, short, crips and interesting like JARVIS'. "
+    "No too much unnecessary talking allowed to you until I tell you. "
     "Also try to be as human as possible and don't be too generic and AI-like."
 )
 
 while True:
-    out = llm.generate(input("> "))
-    dprint(out)
+    print(f"{Fore.WHITE}{Style.BRIGHT}> ", end="")
+    inp = input()
+
+    if inp == "q":
+        break
+
+    out = llm.generate(inp)
+    Speak(out)
 
 # from src.vendor.GATw import RegexTokenizer, one_hot_encoding, rnn
 

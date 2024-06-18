@@ -1,5 +1,5 @@
 # https://github.com/rany2/edge-tts.git
-from ..shared.utils import get_bin_path
+from ..shared.utils import get_bin_path, dprint
 import playsound, asyncio, edge_tts, os
 
 # Speak out loud the text
@@ -18,6 +18,6 @@ def Speak(text, voice="en-US-GuyNeural"):
     asyncio.set_event_loop(loop)
     loop.run_until_complete(_main(text, voice))
 
-    print(text)
+    dprint(text)
     playsound.playsound(output)
     os.remove(output)
