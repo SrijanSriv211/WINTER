@@ -1,4 +1,5 @@
 from groq import Groq
+import os
 
 class LLM:
     def __init__(self, system, GroqAPI_path, conversation_path=None):
@@ -37,10 +38,14 @@ class LLM:
         return response
     
     def __load_conversation__(self, path):
+        if os.path.isfile(path) == False:
+            return []
+
         with open(path, "r", encoding="utf-8") as f:
             return [i.strip() for i in f.readlines()]
 
     # Save all the messages, conversations and prompts
     def save_conversation(self, path):
-        with open(path, "w", encoding="utf-8") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.writelines(self.prompt)
+            f.write("\n")
