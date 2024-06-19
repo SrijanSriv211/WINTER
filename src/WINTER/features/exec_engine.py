@@ -4,21 +4,22 @@ import random, json, os
 
 class ExecEngine:
     def __init__(self, filepath):
-        self.filepath = filepath
+        """
+        `filepath`: `file_io_path[str]` -> The filepath of json file containing all the skills
+        """
 
+        self.func_dict = {}
+        self.filepath = filepath
         self.AOs_startup_path = os.path.join(get_bin_path(), "AOs\\Files.x72\\etc\\Startup\\exec_engine.aos")
+
+    # Map all the functions corresponding to their respective skills.
+    def load(self):
         with open(self.AOs_startup_path, "w", encoding="utf-8") as f:
             f.write(".")
 
         with open(self.filepath, "r", encoding="utf-8") as f:
             self.jsondata = json.load(f)
-        self.func_dict = {}
 
-    def loadAOs(self):
-        os.startfile(os.path.join(get_bin_path(), 'AOs\\AOs.exe'))
-
-    # Map all the functions corresponding to their respective skills.
-    def load(self):
         self.func_dict = {
             "play,video": func.play_video,
             "play,music": func.play_music,
@@ -26,6 +27,8 @@ class ExecEngine:
             "search,wikipedia": func.search_on_wikipedia,
             "translate,one_lang_to_another": func.translate
         }
+
+        os.startfile(os.path.join(get_bin_path(), 'AOs\\AOs.exe'))
 
     # There are 4 execution engines: AOs, func, skills and external.
     def execute(self, input_prompt, predicted_output, respond=True):
@@ -91,7 +94,7 @@ class ExecEngine:
 
             print(skillname, cmd, args, exec_engine)
             if exec_engine == None:
-                break
+                continue
 
             for model in extraction_models:
                 # evaluate the model to extract text from 'input_prompt'
@@ -103,8 +106,7 @@ class ExecEngine:
                         args[i] = ""
 
             if exec_engine == "func" and skillname in self.func_dict.keys():
-                # self.func_dict[skillname](*args)
-                pass
+                self.func_dict[skillname](*args)
 
             elif exec_engine == "AOs":
                 with open(self.AOs_startup_path, "r", encoding="utf-8") as f:
