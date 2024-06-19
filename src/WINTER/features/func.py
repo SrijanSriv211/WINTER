@@ -1,8 +1,4 @@
 import webbrowser, wikipedia, requests
-from googletrans import Translator
-
-# init modules
-translator = Translator()
 
 def play_video(title):
     pass
@@ -32,7 +28,3 @@ def youtube(topic):
 
 def search_on_wikipedia(topic):
     return wikipedia.summary(topic, sentences=3)
-
-def translate(sentence, dest="en"):
-    out = translator.translate(sentence, dest=dest)
-    return out.text

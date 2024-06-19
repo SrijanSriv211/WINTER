@@ -24,8 +24,7 @@ class ExecEngine:
             "play,video": func.play_video,
             "play,music": func.play_music,
             "play,on_youtube": func.youtube,
-            "search,wikipedia": func.search_on_wikipedia,
-            "translate,one_lang_to_another": func.translate
+            "search,wikipedia": func.search_on_wikipedia
         }
 
         os.startfile(os.path.join(get_bin_path(), 'AOs\\AOs.exe'))
