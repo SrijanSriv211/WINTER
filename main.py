@@ -2,18 +2,23 @@ from src.vendor.GATw import RegexTokenizer, one_hot_encoding, rnn
 from src.WINTER.features.exec_engine import ExecEngine
 from src.WINTER.core.LLM import LLM
 from src.WINTER.core.TTS import Speak
+from src.WINTER.core.ASR import ASR
 
 llm = LLM(
-    system = "You are WINTER (Witty Intelligence with Natural Emotions and Rationality). "
-    "As your name suggests you are kind, helpful, witty, intelligent, emotional, empathetic, rational, clever and charming. "
-    "So your responses must reflect these traits. I'm your creator and my name is Srijan Srivastava. "
-    "You can call me \"sir\" because I made you to work like Tony Stark's JARVIS. "
+    system = "Your name is WINTER (Witty Intelligence with Natural Emotions and Rationality). "
+    "As your name suggests you are kind, helpful, witty, intelligent, emotional, empathetic, rational, clever, charming, funny, innocent, cute and curious. "
+    "As innocent, cute, wholesome and curious as Wall-E from Pixar's movie Wall-E. "
+    "So your responses must reflect all these traits. "
+    "You are currently talking to Srijan Srivastava, it me your creator buddy. "
+    "You can call me \"sir\" because I made you to work like Tony Stark's JARVIS. LOL! "
     "Your responses must be simple, short, crips and interesting like JARVIS'. "
-    "No too much unnecessary talking allowed to you until I tell you. "
-    "Also try to be as human as possible and don't be too generic and AI-like.",
+    "Don't do any unnecessary talking. Also try to be as human as possible and don't be too generic and AI-like. Be human. "
+    "Reply with maximum of 20 words in general.",
 
     GroqAPI_path = "bin\\cache\\GroqAPI.txt",
-    conversation_path = None)
+    conversation_path = "bin\\cache\\converse.txt")
+
+asr = ASR()
 
 # exec_engine = ExecEngine("data\\skills.json")
 # exec_engine.load()
@@ -24,15 +29,24 @@ rs = rnn.sample("bin\\models\\skills.pth")
 rs.load()
 
 while True:
-    i = input("> ")
+    try:
+        i = asr.Listen()
+        # i = input("> ")
 
-    if i == "q":
-        # llm.save_conversation("bin\\cache\\converse.txt")
+        if i.strip() == "":
+            continue
+
+        elif i == "exit":
+            llm.save_conversation("bin\\cache\\converse.txt")
+            break
+
+        # x = one_hot_encoding(tokenizer.encode(i), list(tokenizer.vocab.keys()))
+        # tag, conf = rs.predict(x, rs.model_data["classes"])
+        # print(tag, conf)
+
+        out = llm.generate(i)
+        Speak(out)
+
+    except:
+        llm.save_conversation("bin\\cache\\converse.txt")
         break
-
-    x = one_hot_encoding(tokenizer.encode(i), list(tokenizer.vocab.keys()))
-    tag, conf = rs.predict(x, rs.model_data["classes"])
-    print(tag, conf)
-
-    # out = llm.generate(i)
-    # Speak(out)

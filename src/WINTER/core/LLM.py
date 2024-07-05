@@ -17,6 +17,7 @@ class LLM:
         self.client = Groq(api_key = GROQ_API_KEY)
 
     def generate(self, text, model_name = "llama3-8b-8192"):
+        text = "Human: " + text
         self.prompt.append(text)
 
         completion = self.client.chat.completions.create(
@@ -27,14 +28,14 @@ class LLM:
                 },
                 {
                     "role": "user",
-                    "content": "\n".join(self.prompt)
+                    "content": "\n".join(self.prompt) + "\nWINTER: "
                 }
             ],
             model = model_name
         )
 
         response = completion.choices[0].message.content
-        self.prompt.append(response)
+        self.prompt.append("WINTER: " + response)
         return response
     
     def __load_conversation__(self, path):
@@ -47,5 +48,4 @@ class LLM:
     # Save all the messages, conversations and prompts
     def save_conversation(self, path):
         with open(path, "a", encoding="utf-8") as f:
-            f.writelines(self.prompt)
-            f.write("\n")
+            f.write("\n".join(self.prompt) + "\n")
