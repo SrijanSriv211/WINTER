@@ -16,7 +16,7 @@ class LLM:
 
         self.client = Groq(api_key = GROQ_API_KEY)
 
-    def generate(self, text, model_name = "llama3-8b-8192"):
+    def generate(self, text, model_name = "llama3-70b-8192"):
         text = "Human: " + text
         self.prompt.append(text)
 
@@ -47,5 +47,5 @@ class LLM:
 
     # Save all the messages, conversations and prompts
     def save_conversation(self, path):
-        with open(path, "a", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(self.prompt) + "\n")

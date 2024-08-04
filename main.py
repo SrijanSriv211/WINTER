@@ -30,8 +30,8 @@ rs.load()
 
 while True:
     try:
-        i = asr.Listen()
-        # i = input("> ")
+        # i = asr.Listen()
+        i = input("> ")
 
         if i.strip() == "":
             continue
@@ -47,6 +47,6 @@ while True:
         out = llm.generate(i)
         Speak(out)
 
-    except:
+    except Exception as e:
         llm.save_conversation("bin\\cache\\converse.txt")
         break
