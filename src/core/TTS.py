@@ -1,5 +1,5 @@
 # https://github.com/rany2/edge-tts.git
-from ..shared.utils import get_bin_path, dprint
+from ..utils import get_bin_path, dprint
 import playsound, asyncio, edge_tts, os
 
 # Speak out loud the text

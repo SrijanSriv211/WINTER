@@ -1,4 +1,4 @@
-from ..shared.utils import get_bin_path, dprint
+from ..utils import get_bin_path, dprint
 from . import func
 import random, json, os
 
