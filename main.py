@@ -1,8 +1,5 @@
-from src.vendor.GATw import RegexTokenizer, one_hot_encoding, rnn
-from src.WINTER.features.exec_engine import ExecEngine
-from src.WINTER.core.LLM import LLM
-from src.WINTER.core.TTS import Speak
-from src.WINTER.core.ASR import ASR
+from src.core.LLM import LLM
+from src.utils import dprint
 
 llm = LLM(
     system = "Your name is WINTER (Witty Intelligence with Natural Emotions and Rationality). "
@@ -18,35 +15,20 @@ llm = LLM(
     GroqAPI_path = "bin\\cache\\GroqAPI.txt",
     conversation_path = "bin\\cache\\converse.txt")
 
-asr = ASR()
-
-# exec_engine = ExecEngine("data\\skills.json")
-# exec_engine.load()
-
-tokenizer = RegexTokenizer()
-tokenizer.load("bin\\models\\tok2k.model") # loads the model back from disk
-rs = rnn.sample("bin\\models\\skills.pth")
-rs.load()
-
 while True:
     try:
-        # i = asr.Listen()
         i = input("> ")
 
         if i.strip() == "":
             continue
 
         elif i == "exit":
-            llm.save_conversation("bin\\cache\\converse.txt")
+            # llm.save_conversation("bin\\cache\\converse.txt")
             break
 
-        # x = one_hot_encoding(tokenizer.encode(i), list(tokenizer.vocab.keys()))
-        # tag, conf = rs.predict(x, rs.model_data["classes"])
-        # print(tag, conf)
-
         out = llm.generate(i)
-        Speak(out)
+        dprint(out)
 
     except Exception as e:
-        llm.save_conversation("bin\\cache\\converse.txt")
+        # llm.save_conversation("bin\\cache\\converse.txt")
         break
