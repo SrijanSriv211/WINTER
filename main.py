@@ -1,5 +1,5 @@
+from src.shared.utils import dprint
 from src.core.llm import LLM
-from src.utils import dprint
 
 llm = LLM(
     system = "Your name is WINTER (Witty Intelligence with Natural Emotions and Rationality). "
@@ -32,3 +32,15 @@ while True:
     except Exception as e:
         llm.save_conversation("bin\\cache\\converse.txt")
         break
+
+# from src.models.rnn import model as rnn
+# from src.shared import nltk_utils
+# import torch
+
+# model = torch.load("bin\\models\\is9.pth")
+# i = rnn.inference(model)
+# i.load()
+
+# text = nltk_utils.one_hot_encoding("WINTER play me some BBS videos.", model["vocab"])
+# tag, conf = i.predict(text, model["classes"])
+# print(tag, conf)
