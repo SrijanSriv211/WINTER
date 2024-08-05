@@ -50,5 +50,8 @@ Acronyms for training:
 1. 'is' stands for 'intended skill'. For eg, 'is9' = 'intended skill 9' meaning the model has 9 skills.
 2. 'lo' stands for 'logical operator'. For eg, 'lo_and' = 'logical operator and'.
 3. 'cl' stands for 'core language'. For eg, 'cl100k' = 'core language 100k' meaning it is a tokenizer with 100k tokens.
+4. 'aw' stands for 'alphabet write'. For eg, 'aw100k' = 'alphabet write 100k parameters' meaning it is a language model with 100k parameters.
 """
-torch.save(out, "bin\\models\\is9.pth")
+# 'clis1k9' means 'core language intended skill 1000 tokens with 9 classes'
+# 'cl1kis9' = 'clis1k9'. Since the name is very simple number of tokens and the prefix name are interchangable.
+torch.save(out, "bin\\models\\clis1k9.pth")

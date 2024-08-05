@@ -37,7 +37,7 @@ while True:
 # from src.shared import nltk_utils
 # import torch
 
-# model = torch.load("bin\\models\\is9.pth")
+# model = torch.load("bin\\models\\clis1k9.pth")
 # i = rnn.inference(model)
 # i.load()
 
