@@ -36,3 +36,30 @@ class RNN(nn.Module):
         confidence = prob.item()
 
         return predicted.item(), confidence
+
+class inference:
+    def __init__(self, model_data):
+        self.state_dict = model_data["state_dict"]
+        RNNConfig.device = model_data["device"]
+        RNNConfig.input_size = model_data["config"]["input_size"]
+        RNNConfig.output_size = model_data["config"]["output_size"]
+        RNNConfig.n_hidden = model_data["config"]["n_hidden"]
+        RNNConfig.n_layer = model_data["config"]["n_layer"]
+
+    def load(self):
+        self.model = RNN() # create an instance of RNN
+
+        # load the saved model state_dict
+        self.model.load_state_dict(self.state_dict)
+        self.model.to(RNNConfig.device)
+        self.model.eval()  # set the model to evaluation mode
+
+    # use the model for classification or other tasks
+    def predict(self, X, classes):
+        X = X.reshape(1, X.shape[0])
+        X = torch.tensor(X).to(RNNConfig.device)
+
+        i, confidence = self.model.predict(X)
+        tag = classes[i]
+
+        return tag, confidence
