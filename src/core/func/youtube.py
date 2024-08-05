@@ -1,13 +1,11 @@
-import webbrowser, wikipedia, requests
+import webbrowser, requests
 
-def play_video(title):
-    pass
-
-def play_music(title):
+# Search and play a random most recent youtube video from subscribed channels.
+def play_random_youtube_video():
     pass
 
 # https://github.com/Ankit404butfound/PyWhatKit/blob/master/pywhatkit/misc.py
-def youtube(topic):
+def play_youtube_video(topic):
     url = f"https://www.youtube.com/results?q={topic}"
     count = 0
     cont = requests.get(url, timeout=5)
@@ -25,6 +23,3 @@ def youtube(topic):
 
     webbrowser.open(f"https://www.youtube.com{lst[count - 5]}")
     return f"https://www.youtube.com{lst[count - 5]}"
-
-def search_on_wikipedia(topic):
-    return wikipedia.summary(topic, sentences=3)
