@@ -41,7 +41,7 @@ rnn.RNNConfig.device = "cpu"
 # train model
 t = train.train(64)
 t.prepare(data)
-out = t.train(0.001)
+out = t.train(0.001, 2000)
 out["classes"] = classes
 out["vocab"] = vocab
 
@@ -51,4 +51,4 @@ Acronyms for training:
 2. 'lo' stands for 'logical operator'. For eg, 'lo_and' = 'logical operator and'.
 3. 'cl' stands for 'core language'. For eg, 'cl100k' = 'core language 100k' meaning it is a tokenizer with 100k tokens.
 """
-torch.save("bin\\models\\is9.pth")
+torch.save(out, "bin\\models\\is9.pth")
