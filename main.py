@@ -1,4 +1,4 @@
-from src.core.LLM import LLM
+from src.core.llm import LLM
 from src.utils import dprint
 
 llm = LLM(
@@ -23,12 +23,12 @@ while True:
             continue
 
         elif i == "exit":
-            # llm.save_conversation("bin\\cache\\converse.txt")
+            llm.save_conversation("bin\\cache\\converse.txt")
             break
 
         out = llm.generate(i)
         dprint(out)
 
     except Exception as e:
-        # llm.save_conversation("bin\\cache\\converse.txt")
+        llm.save_conversation("bin\\cache\\converse.txt")
         break
