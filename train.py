@@ -2,24 +2,30 @@ from src.models.rnn import train, model as rnn
 from src.shared import nltk_utils
 import torch, json
 
-#############################################
-################# Train RNN #################
-#############################################
+####################################################
+################# Train skills RNN #################
+####################################################
 
-with open("data\\skills.json", "r", encoding="utf-8") as f:
+with open("data\\clis.json", "r", encoding="utf-8") as f:
     obj = json.load(f)
 
 classes = []
 vocab = []
 xy = [] # x = pattern, y = tag
 
-for intent in obj["skills"]:
-    classes.append(intent["skill"])
+for intent in obj["clis"]:
+    skill = intent["skill"]
+    patterns = intent["patterns"]
 
-    for pattern in intent["patterns"]:
+    if skill != "default" and patterns == [""]:
+        continue
+
+    classes.append(skill)
+
+    for pattern in patterns:
         tokenized_words = nltk_utils.tokenize(pattern)
         vocab.extend(tokenized_words)
-        xy.append((pattern, intent["skill"]))
+        xy.append((pattern, skill))
 
 # lemmatize, lower each word and remove unnecessary chars.
 vocab = nltk_utils.remove_special_chars(vocab)
@@ -33,25 +39,18 @@ data = [(nltk_utils.one_hot_encoding(x, vocab), classes.index(y)) for x, y in xy
 
 # configure model
 rnn.RNNConfig.input_size = len(vocab)
-rnn.RNNConfig.n_hidden = 16
-rnn.RNNConfig.n_layer = 4
+rnn.RNNConfig.n_hidden = 8
+rnn.RNNConfig.n_layer = 1
 rnn.RNNConfig.output_size = len(classes)
 rnn.RNNConfig.device = "cpu"
 
 # train model
 t = train.train(64)
 t.prepare(data)
-out = t.train(0.001, 2000)
+out = t.train(1e-3, 2000)
 out["classes"] = classes
 out["vocab"] = vocab
 
-"""
-Acronyms for training:
-1. 'is' stands for 'intended skill'. For eg, 'is9' = 'intended skill 9' meaning the model has 9 skills.
-2. 'lo' stands for 'logical operator'. For eg, 'lo_and' = 'logical operator and'.
-3. 'cl' stands for 'core language'. For eg, 'cl100k' = 'core language 100k' meaning it is a tokenizer with 100k tokens.
-4. 'aw' stands for 'alphabet write'. For eg, 'aw100k' = 'alphabet write 100k parameters' meaning it is a language model with 100k parameters.
-"""
-# 'clis1k9' means 'core language intended skill 1000 tokens with 9 classes'
-# 'cl1kis9' = 'clis1k9'. Since the name is very simple number of tokens and the prefix name are interchangable.
-torch.save(out, "bin\\models\\clis1k9.pth")
+# 'clis1k10' means 'core language intentions 1000 tokens with 10 classes'
+# 'cl1kis10' = 'clis1k10'. Since the name is very simple number of tokens and the prefix name are interchangable.
+torch.save(out, f"bin\\models\\clis1k{len(classes)}.pth")
