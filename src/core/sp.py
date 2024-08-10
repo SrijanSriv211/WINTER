@@ -1,6 +1,6 @@
 # Speech Processing Engines
 # https://github.com/rany2/edge-tts.git
-from ..utils import get_bin_path, dprint
+from ..shared.utils import get_bin_path, dprint
 from colorama import Style, Fore, init
 import playsound, asyncio, edge_tts, os
 import speech_recognition as sr

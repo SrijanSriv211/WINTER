@@ -53,7 +53,7 @@ class train:
     # eval_interval: The interval between each loss evaluation
     # eval_iters: The iterations for each loss evaluation
     def train(self, lr, n_steps = 1000, eval_interval = 100, eval_iters = 100):
-        # Create an instance of RNN
+        # create an instance of RNN
         self.model = RNN()
         m = self.model.to(RNNConfig.device)
         print(f"{Fore.WHITE}{Style.BRIGHT}{(sum(p.numel() for p in m.parameters())/1e6)}", 'M parameters') # print the number of parameters in the model
