@@ -13,3 +13,6 @@ def set_brightness(level):
         level = 100
 
     sbc.set_brightness(level)
+
+def change_brightness(magnitude):
+    set_brightness(get_brightness() + magnitude)
