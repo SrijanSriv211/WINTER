@@ -146,3 +146,41 @@ class GPT(nn.Module):
             # append sampled index to the running sequence
             idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
         return idx
+
+class inference:
+    def __init__(self, model_data, auto_load=False):
+        self.state_dict = model_data["state_dict"]
+        GPTConfig.device = model_data["device"]
+        GPTConfig.n_embd = model_data["config"]["n_embd"]
+        GPTConfig.n_head = model_data["config"]["n_head"]
+        GPTConfig.n_layer = model_data["config"]["n_layer"]
+        GPTConfig.block_size = model_data["config"]["block_size"]
+        GPTConfig.dropout = model_data["config"]["dropout"]
+        GPTConfig.vocab_size = model_data["config"]["vocab_size"]
+
+        # automatically load the model
+        if auto_load: self.load()
+
+    def load(self):
+        self.model = GPT() # create an instance of RNN
+
+        # load the saved model state_dict
+        self.model.load_state_dict(self.state_dict)
+        self.model.to(GPTConfig.device)
+        self.model.eval()  # set the model to evaluation mode
+
+    # use the model for generation or other tasks
+    def generate(self, encoded_text=None, length=100, temperature=1.0, top_k=None):
+        """
+        `max_new_tokens`: number of tokens generated in each sample
+        `temperature`: 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
+        `tok_k`: retain only the top_k most likely tokens, clamp others to have 0 probability
+        """
+
+        return self.model.generate(self.prepare_context(encoded_text), max_new_tokens=length, temperature=temperature, top_k=top_k)[0].tolist()
+    
+    def prepare_context(self, encoded_text):
+        if encoded_text == None:
+            return torch.zeros((1, 1), dtype=torch.long, device=GPTConfig.device)
+
+        return torch.tensor(encoded_text, dtype=torch.long, device=GPTConfig.device).unsqueeze(0)
