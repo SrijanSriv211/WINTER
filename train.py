@@ -40,14 +40,14 @@ data = [(nltk_utils.one_hot_encoding(x, vocab), classes.index(y)) for x, y in xy
 # configure model
 rnn.RNNConfig.input_size = len(vocab)
 rnn.RNNConfig.n_hidden = 8
-rnn.RNNConfig.n_layer = 1
+rnn.RNNConfig.n_layer = 2
 rnn.RNNConfig.output_size = len(classes)
 rnn.RNNConfig.device = "cpu"
 
 # train model
 t = train.train(64)
 t.prepare(data)
-out = t.train(1e-3, 2000)
+out = t.train(1e-3, 5000)
 out["classes"] = classes
 out["vocab"] = vocab
 
