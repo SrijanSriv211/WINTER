@@ -20,3 +20,17 @@ def get_bin_path():
 
     # Append "cache" directory to the parent directory
     return os.path.join(parent_dir, "bin")
+
+def calc_total_time(seconds):
+    min, sec = divmod(seconds, 60)
+    hour, min = divmod(min, 60)
+    hours, minutes, seconds = int(hour), int(min), int(sec)
+
+    t = [
+        f"{hours} hour" + ("s" if hours > 1 else "") if hours > 0 else None,
+        f"{minutes} minute" + ("s" if minutes > 1 else "") if minutes > 0 else None,
+        f"{seconds} second" + ("s" if seconds > 1 else "") if seconds > 0 else None
+    ]
+    t = list(filter(None, t))
+
+    print("Total time:", ", ".join(t) if t else "0 seconds")
