@@ -1,11 +1,13 @@
 from colorama import init, Fore, Style
 from .model import GPTConfig, GPT
+from ...shared.utils import calc_total_time
 import torch, time
 
 init(autoreset=True)
 
 class train:
-    def __init__(self, batch_size):
+    # `model`: if not none then resume training a model otherwise train from scratch
+    def __init__(self, batch_size, model=None):
         GPTConfig.device = ("cuda" if torch.cuda.is_available() else "cpu") if GPTConfig.device == "auto" else GPTConfig.device
         # how many independent sequences will we process in parallel?
         self.batch_size = batch_size
@@ -18,6 +20,21 @@ class train:
 
         # print the device
         print("Training on", f"{Fore.YELLOW}{Style.BRIGHT}{GPTConfig.device}")
+
+        # create an instance of GPT
+        self.model = GPT()
+        if model:
+            self.state_dict = model["state_dict"]
+            GPTConfig.device = model["device"]
+            GPTConfig.n_embd = model["config"]["n_embd"]
+            GPTConfig.n_head = model["config"]["n_head"]
+            GPTConfig.n_layer = model["config"]["n_layer"]
+            GPTConfig.block_size = model["config"]["block_size"]
+            GPTConfig.dropout = model["config"]["dropout"]
+            GPTConfig.vocab_size = model["config"]["vocab_size"]
+
+            # load the saved model state_dict
+            self.model.load_state_dict(self.state_dict)
 
     def prepare(self, data, data_division):
         """
@@ -65,14 +82,13 @@ class train:
         self.model.train()
         return out
 
-    # n_steps: Number of epochs to train the model for
-    # eval_interval: The interval between each loss evaluation
-    # eval_iters: The iterations for each loss evaluation
+    # `n_steps`: number of epochs to train the model for
+    # `eval_interval`: the interval between each loss evaluation
+    # `eval_iters`: the iterations for each loss evaluation
+    # `checkpoints`: checkpoints = {'path': "directory-to-save-in", "name": "model-name", "interval": after-how-many-iters-to-save-checkpoint(int)}
     def train(self, lr, n_steps = 1000, eval_interval = 100, eval_iters = 100, checkpoints={}):
-        # create an instance of GPT
-        self.model = GPT()
-        m = self.model.to(GPTConfig.device)
         # print the number of parameters in the model
+        m = self.model.to(GPTConfig.device)
         self.n_parameters = sum(p.numel() for p in m.parameters())/1e6
         print(f"{Fore.WHITE}{Style.BRIGHT}{self.n_parameters}", 'M parameters')
 
@@ -93,7 +109,6 @@ class train:
 
                 if checkpoints and (iter + 1) % checkpoints["interval"] == 0:
                     self.save(self.get_trained_model(), f"{checkpoints["path"]}\\step{(iter + 1)}_{checkpoints["name"]}.pth")
-                    print("saved checkpoint")
 
                 # sample a batch of data
                 xb, yb = self.get_batch('train')
@@ -107,8 +122,7 @@ class train:
             except KeyboardInterrupt:
                 break
 
-        print(f"Time taken: {Fore.BLUE}{Style.BRIGHT}{(time.perf_counter() - start_time):.0f} sec")
-
+        calc_total_time(time.perf_counter() - start_time)
         return self.get_trained_model()
 
     def get_trained_model(self):
