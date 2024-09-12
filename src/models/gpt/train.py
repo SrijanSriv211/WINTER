@@ -34,11 +34,12 @@ class train:
         # train and test splits
         n = int(data_division * len(data)) # the first (data_division * 100)% will be train, rest val
         self.train_data = data[:n]
-        self.val_data = data[n:]
+        self.val_data = data[n:] if 0 < data_division < 1 else data[:n]
 
         # print the number of tokens
         print(f"{Fore.WHITE}{Style.BRIGHT}{(len(data)/1e6)}", "M total tokens")
         print(f"{Fore.WHITE}{Style.BRIGHT}{(len(self.train_data)/1e6)}", "M train tokens,", f"{Fore.WHITE}{Style.BRIGHT}{(len(self.val_data)/1e6)}", "M test tokens")
+        print(f"{Fore.WHITE}{Style.DIM}Using train tokens as test tokens\n") if not (0 < data_division < 1) else None
 
     # data loading
     def get_batch(self, split):
@@ -67,12 +68,13 @@ class train:
     # n_steps: Number of epochs to train the model for
     # eval_interval: The interval between each loss evaluation
     # eval_iters: The iterations for each loss evaluation
-    def train(self, lr, n_steps = 1000, eval_interval = 100, eval_iters = 100):
+    def train(self, lr, n_steps = 1000, eval_interval = 100, eval_iters = 100, checkpoints={}):
         # create an instance of GPT
         self.model = GPT()
         m = self.model.to(GPTConfig.device)
         # print the number of parameters in the model
-        print(f"{Fore.WHITE}{Style.BRIGHT}{(sum(p.numel() for p in m.parameters())/1e6)}", 'M parameters')
+        self.n_parameters = sum(p.numel() for p in m.parameters())/1e6
+        print(f"{Fore.WHITE}{Style.BRIGHT}{self.n_parameters}", 'M parameters')
 
         # create a PyTorch optimizer
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr)
@@ -89,6 +91,10 @@ class train:
                     self.losses["train"].append(losses['train'])
                     self.losses["val"].append(losses['val'])
 
+                if checkpoints and (iter + 1) % checkpoints["interval"] == 0:
+                    self.save(self.get_trained_model(), f"{checkpoints["path"]}\\step{(iter + 1)}_{checkpoints["name"]}.pth")
+                    print("saved checkpoint")
+
                 # sample a batch of data
                 xb, yb = self.get_batch('train')
 
@@ -103,6 +109,9 @@ class train:
 
         print(f"Time taken: {Fore.BLUE}{Style.BRIGHT}{(time.perf_counter() - start_time):.0f} sec")
 
+        return self.get_trained_model()
+
+    def get_trained_model(self):
         return {
             "state_dict": self.model.state_dict(),
             "device": GPTConfig.device,
@@ -115,3 +124,6 @@ class train:
                 "vocab_size": GPTConfig.vocab_size
             }
         }
+
+    def save(self, model, path):
+        torch.save(model, f"{path}.pth")
