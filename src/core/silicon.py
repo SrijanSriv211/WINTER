@@ -53,7 +53,7 @@ class silicon:
             self.__exec_tasks__(command, parameters, tasks)
 
         return response if response else None
-    
+
     def __exec_tasks__(self, command, parameters, tasks):
         for task in tasks:
             cmd = task["cmd"]

@@ -1,10 +1,11 @@
-import time, os
+import time, sys, os
 
 # dprint -> delay print
 # ChatGPT like print effect.
 def dprint(text, delay=0.001):
     for char in text:
-        print(char, end="", flush=True)
+        sys.stdout.write(char)
+        sys.stdout.flush()
         time.sleep(delay)
     print("\n")
 
@@ -33,4 +34,4 @@ def calc_total_time(seconds):
     ]
     t = list(filter(None, t))
 
-    print("Total time:", ", ".join(t) if t else "0 seconds")
+    return ", ".join(t) if t else "0 seconds"
