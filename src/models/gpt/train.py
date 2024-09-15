@@ -1,13 +1,13 @@
 from colorama import init, Fore, Style
 from .model import GPTConfig, GPT
 from ...shared.utils import calc_total_time
-import torch, time
+import torch, time, os
 
 init(autoreset=True)
 
 class train:
     # `model`: if not none then resume training a model otherwise train from scratch
-    def __init__(self, batch_size, model=None):
+    def __init__(self, batch_size):
         GPTConfig.device = ("cuda" if torch.cuda.is_available() else "cpu") if GPTConfig.device == "auto" else GPTConfig.device
         # how many independent sequences will we process in parallel?
         self.batch_size = batch_size
@@ -23,30 +23,24 @@ class train:
 
         # create an instance of GPT
         self.model = GPT()
-        if model:
-            self.state_dict = model["state_dict"]
-            GPTConfig.device = model["device"]
-            GPTConfig.n_embd = model["config"]["n_embd"]
-            GPTConfig.n_head = model["config"]["n_head"]
-            GPTConfig.n_layer = model["config"]["n_layer"]
-            GPTConfig.block_size = model["config"]["block_size"]
-            GPTConfig.dropout = model["config"]["dropout"]
-            GPTConfig.vocab_size = model["config"]["vocab_size"]
 
-            # load the saved model state_dict
-            self.model.load_state_dict(self.state_dict)
+    # load the saved model state_dict
+    def from_pretrained(self, state_dict):
+        self.model.load_state_dict(state_dict)
 
-    def prepare(self, data, data_division):
+    def prepare(self, encoded_data, data_division):
         """
         1. `data`: The encoded training text data.
 
         For eg,
         ```python
-        torch.tensor(encode(text, stoi=self.stoi), dtype=torch.long)
+        encode(text, stoi=self.stoi)
         ```
 
         2. `data_division`: The first `(data_division * 100)%` will be train, rest val
         """
+
+        data = torch.tensor(encoded_data, dtype=torch.long)
 
         # train and test splits
         n = int(data_division * len(data)) # the first (data_division * 100)% will be train, rest val
@@ -97,18 +91,34 @@ class train:
 
         # start timer
         start_time = time.perf_counter()
+        eval_time = time.perf_counter()
 
         # train the model for n_steps
         for iter in range(n_steps):
             try:
                 if (iter + 1) % eval_interval == 0 or iter == n_steps - 1:
                     losses = self.estimate_loss(eval_iters)
-                    print(f"step [{iter + 1}/{n_steps}]: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+
+                    print(
+                        f"{Fore.WHITE}{Style.BRIGHT}step "
+                        f"{Fore.BLACK}{Style.BRIGHT}[{iter + 1}/{n_steps}]"
+                        f"{Fore.RESET}{Style.RESET_ALL}: "
+                        f"train loss {Fore.WHITE}{Style.BRIGHT}{losses['train']:.4f}"
+                        f"{Fore.RESET}{Style.RESET_ALL}, "
+                        f"val loss {Fore.WHITE}{Style.BRIGHT}{losses['val']:.4f}"
+                        f"{Fore.RESET}{Style.RESET_ALL}, "
+                        f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(time.perf_counter() - eval_time)}"
+                    )
+
                     self.losses["train"].append(losses['train'])
                     self.losses["val"].append(losses['val'])
+                    eval_time = time.perf_counter()
 
                 if checkpoints and (iter + 1) % checkpoints["interval"] == 0:
-                    self.save(self.get_trained_model(), f"{checkpoints["path"]}\\step{(iter + 1)}_{checkpoints["name"]}.pth")
+                    if not os.path.isdir(checkpoints["path"]):
+                        os.mkdir(checkpoints["path"])
+
+                    self.save(self.get_trained_model(), f"{checkpoints["path"]}\\step{(iter + 1)}_{checkpoints["name"]}")
 
                 # sample a batch of data
                 xb, yb = self.get_batch('train')
@@ -120,9 +130,10 @@ class train:
                 optimizer.step()
 
             except KeyboardInterrupt:
+                print()
                 break
 
-        calc_total_time(time.perf_counter() - start_time)
+        print("Total time:", calc_total_time(time.perf_counter() - start_time))
         return self.get_trained_model()
 
     def get_trained_model(self):
