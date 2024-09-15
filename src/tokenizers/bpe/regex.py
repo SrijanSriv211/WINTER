@@ -9,9 +9,12 @@ Unlike BasicTokenizer:
 - RegexTokenizer handles optional special tokens.
 """
 
+from colorama import init, Fore, Style
+
 import regex as re
 from .base import Tokenizer, get_stats, merge
 
+init(autoreset=True)
 
 # the main GPT text split patterns, see
 # https://github.com/openai/tiktoken/blob/main/tiktoken_ext/openai_public.py
@@ -63,7 +66,14 @@ class RegexTokenizer(Tokenizer):
             vocab[idx] = vocab[pair[0]] + vocab[pair[1]]
             # prints
             if verbose:
-                print(f"merge {i+1}/{num_merges}: {pair} -> {idx} ({vocab[idx]}) had {stats[pair]} occurrences")
+                print(
+                    f"{Fore.WHITE}{Style.BRIGHT}merge",
+                    f"{Fore.BLACK}{Style.BRIGHT}[{i+1}/{num_merges}]"
+                    ":",
+                    f"{Fore.BLACK}{Style.BRIGHT}{pair} -> {idx}",
+                    f"{Fore.WHITE}{Style.DIM}({vocab[idx]})",
+                    f"had {Fore.WHITE}{Style.BRIGHT}{stats[pair]}{Style.RESET_ALL} occurrences"
+                )
 
         # save class variables
         self.merges = merges # used in encode()
