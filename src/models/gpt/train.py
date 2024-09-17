@@ -130,7 +130,7 @@ class train:
                 optimizer.step()
 
             except KeyboardInterrupt:
-                print()
+                print(f"{Fore.RED}{Style.BRIGHT}Early stopping.")
                 break
 
         print("Total time:", calc_total_time(time.perf_counter() - start_time))

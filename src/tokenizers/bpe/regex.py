@@ -10,9 +10,10 @@ Unlike BasicTokenizer:
 """
 
 from colorama import init, Fore, Style
-
-import regex as re
 from .base import Tokenizer, get_stats, merge
+from ...shared.utils import calc_total_time
+import regex as re
+import time
 
 init(autoreset=True)
 
@@ -49,6 +50,10 @@ class RegexTokenizer(Tokenizer):
         # iteratively merge the most common pairs to create new tokens
         merges = {} # (int, int) -> int
         vocab = {idx: bytes([idx]) for idx in range(256)} # idx -> bytes
+
+        print("training on vocab size", f"{Fore.WHITE}{Style.BRIGHT}{vocab_size}")
+        start_time = time.perf_counter()
+
         for i in range(num_merges):
             # count the number of times every consecutive pair appears
             stats = {}
@@ -74,6 +79,8 @@ class RegexTokenizer(Tokenizer):
                     f"{Fore.WHITE}{Style.DIM}({vocab[idx]})",
                     f"had {Fore.WHITE}{Style.BRIGHT}{stats[pair]}{Style.RESET_ALL} occurrences"
                 )
+
+        print("time taken: ", f"{Fore.WHITE}{Style.BRIGHT}{calc_total_time(time.perf_counter()-start_time)}")
 
         # save class variables
         self.merges = merges # used in encode()
