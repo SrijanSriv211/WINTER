@@ -6,9 +6,9 @@ class GPTConfig:
     n_embd = 8
     n_head = 2
     n_layer = 2
-    block_size = 16 # what is the maximum context length for predictions?
+    block_size = 32 # what is the maximum context length for predictions?
     dropout = 0
-    vocab_size = None
+    vocab_size = 1024
     device = "auto"
 
 # https://youtu.be/kCc8FmEb1nY

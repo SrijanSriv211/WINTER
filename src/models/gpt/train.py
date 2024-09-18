@@ -7,7 +7,7 @@ init(autoreset=True)
 
 class train:
     # `model`: if not none then resume training a model otherwise train from scratch
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, pretrained=None):
         GPTConfig.device = ("cuda" if torch.cuda.is_available() else "cpu") if GPTConfig.device == "auto" else GPTConfig.device
         # how many independent sequences will we process in parallel?
         self.batch_size = batch_size
@@ -19,14 +19,26 @@ class train:
         }
 
         # print the device
-        print("Training on", f"{Fore.YELLOW}{Style.BRIGHT}{GPTConfig.device}")
+        print(
+            "Training on", f"{Fore.YELLOW}{Style.BRIGHT}{GPTConfig.device}",
+            f"   {Fore.WHITE}{Style.BRIGHT}({torch.seed()})"
+        )
+
+        self.model = GPT() if pretrained == None else self.from_pretrained(pretrained)
+
+    # load the saved model state_dict
+    def from_pretrained(self, model):
+        GPTConfig.device = model["device"]
+        GPTConfig.n_embd = model["config"]["n_embd"]
+        GPTConfig.n_head = model["config"]["n_head"]
+        GPTConfig.n_layer = model["config"]["n_layer"]
+        GPTConfig.block_size = model["config"]["block_size"]
+        GPTConfig.dropout = model["config"]["dropout"]
+        GPTConfig.vocab_size = model["config"]["vocab_size"]
 
         # create an instance of GPT
         self.model = GPT()
-
-    # load the saved model state_dict
-    def from_pretrained(self, state_dict):
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(model["state_dict"])
 
     def prepare(self, encoded_data, data_division):
         """
@@ -49,8 +61,11 @@ class train:
 
         # print the number of tokens
         print(f"{Fore.WHITE}{Style.BRIGHT}{(len(data)/1e6)}", "M total tokens")
-        print(f"{Fore.WHITE}{Style.BRIGHT}{(len(self.train_data)/1e6)}", "M train tokens,", f"{Fore.WHITE}{Style.BRIGHT}{(len(self.val_data)/1e6)}", "M test tokens")
-        print(f"{Fore.WHITE}{Style.DIM}Using train tokens as test tokens\n") if not (0 < data_division < 1) else None
+        print(
+            f"{Fore.WHITE}{Style.BRIGHT}{(len(self.train_data)/1e6)}", "M train tokens,",
+            f"{Fore.WHITE}{Style.BRIGHT}{(len(self.val_data)/1e6)}", "M test tokens",
+            f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if not (0 < data_division < 1) else ""
+        )
 
     # data loading
     def get_batch(self, split):
