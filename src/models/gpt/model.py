@@ -133,9 +133,6 @@ class GPT(nn.Module):
             if pn.endswith('c_proj.weight'):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
 
-        # report number of parameters
-        print(f"{Fore.WHITE}{Style.BRIGHT}{(self.get_num_params()/1e6,)}M", "parameters")
-
     def get_num_params(self, non_embedding=True):
         """
         Return the number of parameters in the model.
@@ -209,15 +206,28 @@ class GPT(nn.Module):
         ]
         num_decay_params = sum(p.numel() for p in decay_params)
         num_nodecay_params = sum(p.numel() for p in nodecay_params)
-        print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
-        print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
+        print(
+            f"Num decayed parameter tensors: {Fore.WHITE}{Style.BRIGHT}{len(decay_params)}"
+            f"{Style.RESET_ALL},",
+            f"with {Fore.WHITE}{Style.BRIGHT}{num_decay_params:,}",
+            "parameters"
+        )
+
+        print(
+            f"Num non-decayed parameter tensors: {Fore.WHITE}{Style.BRIGHT}{len(nodecay_params)}"
+            f"{Style.RESET_ALL},",
+            f"with {Fore.WHITE}{Style.BRIGHT}{num_nodecay_params:,}",
+            "parameters"
+        )
 
         # Create AdamW optimizer and use the fused version if it is available
         fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
         use_fused = fused_available and device_type == 'cuda'
         extra_args = dict(fused=True) if use_fused else dict()
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
-        print(f"using fused AdamW: {use_fused}")
+
+        color = f"{Fore.LIGHTGREEN_EX}{Style.BRIGHT}" if use_fused == True else f"{Fore.LIGHTRED_EX}{Style.BRIGHT}"
+        print(f"Using fused AdamW: {color}{use_fused}")
 
         return optimizer
 

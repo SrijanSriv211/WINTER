@@ -2,10 +2,9 @@ from .model import GPTConfig, GPT
 import torch
 
 class sample:
-    def __init__(self, model, device="auto", auto_load=True):
+    def __init__(self, checkpoint, device="auto", auto_load=True):
         self.device = ("cuda" if torch.cuda.is_available() else "cpu") if device == "auto" else device
 
-        checkpoint = torch.load(model, map_location=self.device)
         self.state_dict = checkpoint["model"]
         self.gptconf = GPTConfig(**checkpoint["hyperparams"])
 
@@ -33,6 +32,6 @@ class sample:
     
     def prepare_context(self, encoded_text):
         if encoded_text == None:
-            return torch.zeros((1, 1), dtype=torch.long, device=GPTConfig.device)
+            return torch.zeros((1, 1), dtype=torch.long, device=self.device)
 
-        return torch.tensor(encoded_text, dtype=torch.long, device=GPTConfig.device).unsqueeze(0)
+        return torch.tensor(encoded_text, dtype=torch.long, device=self.device).unsqueeze(0)
