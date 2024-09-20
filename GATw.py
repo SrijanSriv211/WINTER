@@ -48,12 +48,13 @@ CONFIG = dict(
 with open("data\\claw.txt", "r", encoding="utf-8") as f:
     data = tokenizer.encode(f.read(), allowed_special="all")
 
-out = torch.load("bin\\models\\claw.pth")
+out = torch.load("bin\\models\\claw.pth", map_location="cpu")
 t = train.train(CONFIG)
 t.from_scratch()
 t.prepare_data(data, 1)
-out = t.train(max_iters=10000, eval_interval=1000)
+t.plot("bin\\models\\plot\\claw.png")
+out = t.train(max_iters=10000, eval_interval=1000, log_interval=500)
 torch.save(out, "bin\\models\\claw.pth")
 
 i = sample.sample(out, auto_load=True)
-dprint(tokenizer.decode(i.generate()))
+dprint(tokenizer.decode(i.generate(tokenizer.encode("Wake up WINTER daddy's home\n<|startoftext|>"))))

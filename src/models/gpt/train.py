@@ -2,6 +2,7 @@ from colorama import init, Fore, Style
 from contextlib import nullcontext
 from .model import GPTConfig, GPT
 from ...shared.utils import calc_total_time
+import matplotlib.pyplot as plt
 import torch, time, math, os
 
 init(autoreset=True)
@@ -89,12 +90,11 @@ class train:
         # optimizer
         self.optimizer = self.model.configure_optimizers(self.config["weight_decay"], self.config["learning_rate"], (self.config["beta1"], self.config["beta2"]), self.config["device"])
 
-    def from_pretrained(self, pretrained_model):
+    def from_pretrained(self, checkpoint):
         """
-        Load the pretrained model from path, for eg, `from_pretrained("bin\\model\\ckpt.pth")`
+        Load the pretrained model from path, for eg, `from_pretrained(torch.load("bin\\model\\ckpt.pth", map_location=self.device))`
         """
 
-        checkpoint = torch.load(pretrained_model, map_location=self.device)
         state_dict = checkpoint["model"]
         self.iter_num = checkpoint["iter_num"]
 
@@ -204,9 +204,9 @@ class train:
 
         # training loop
         X, Y = self.get_batch("train") # fetch the very first batch
-        start_time = time.perf_counter()
-        eval_time = time.perf_counter()
-        t0 = time.perf_counter()
+        start_time = time.time()
+        eval_time = time.time()
+        t0 = time.time()
         local_iter_num = 0 # number of iterations in the lifetime of this process
         running_mfu = -1.0
         while True:
@@ -221,20 +221,23 @@ class train:
                     losses = self.estimate_loss(eval_iters)
 
                     print(
-                        f"{Fore.WHITE}{Style.BRIGHT}step "
+                        f"{Fore.WHITE}{Style.BRIGHT}step",
                         f"{Fore.BLACK}{Style.BRIGHT}[{self.iter_num}/{max_iters}]"
-                        f"{Fore.RESET}{Style.RESET_ALL}: "
+                        f"{Fore.RESET}{Style.RESET_ALL}:",
                         f"train loss {Fore.WHITE}{Style.BRIGHT}{losses["train"]:.4f}"
-                        f"{Fore.RESET}{Style.RESET_ALL}, "
+                        f"{Fore.RESET}{Style.RESET_ALL},",
                         f"val loss {Fore.WHITE}{Style.BRIGHT}{losses["val"]:.4f}"
-                        f"{Fore.RESET}{Style.RESET_ALL}, "
-                        f"lr {Fore.WHITE}{Style.BRIGHT}{lr:.4f}"
-                        f"{Fore.RESET}{Style.RESET_ALL}, "
-                        f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(time.perf_counter() - eval_time)}"
+                        f"{Fore.RESET}{Style.RESET_ALL},",
+                        f"mfu {Fore.WHITE}{Style.BRIGHT}{running_mfu*100:.2f}"
+                        f"{Fore.RESET}{Style.RESET_ALL},",
+                        f"lr {Fore.WHITE}{Style.BRIGHT}{lr:.4f}",
+                        f"{Fore.RESET}{Style.RESET_ALL},"
+                        f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(time.time() - eval_time)}"
                     )
 
                     self.losses["train"].append(losses["train"])
                     self.losses["val"].append(losses["val"])
+                    eval_time = time.time()
 
                 if self.config["checkpoints"] and self.iter_num % self.config["checkpoints"]["interval"] == 0:
                     if not os.path.isdir(self.config["checkpoints"]["path"]):
@@ -268,7 +271,7 @@ class train:
                 self.optimizer.zero_grad(set_to_none=True)
 
                 # timing and logging
-                t1 = time.perf_counter()
+                t1 = time.time()
                 dt = t1 - t0
                 t0 = t1
 
@@ -303,7 +306,7 @@ class train:
                 print(f"{Fore.RED}{Style.BRIGHT}Early stopping.")
                 break
 
-        print("Total time:", calc_total_time(time.perf_counter() - start_time))
+        print("Total time:", calc_total_time(time.time() - start_time))
         return self.get_trained_model()
 
     def get_trained_model(self):
@@ -314,3 +317,23 @@ class train:
             "iter_num": self.iter_num,
             "device": self.device
         }
+
+    def plot(self, path):
+        plt.style.use("seaborn-v0_8-dark")
+
+        for param in ["figure.facecolor", "axes.facecolor", "savefig.facecolor"]:
+            plt.rcParams[param] = "#212946"  # bluish dark grey
+
+        for param in ["text.color", "axes.labelcolor", "xtick.color", "ytick.color"]:
+            plt.rcParams[param] = "0.9"  # very light grey
+
+        plt.figure(figsize=(18, 8))
+        plt.plot(self.losses["train"], label="train loss")
+        plt.plot(self.losses["val"], label="val loss")
+
+        plt.xlabel("iteration", fontsize=12)
+        plt.ylabel("value", fontsize=12)
+        plt.legend(fontsize=12)
+        plt.title("train-val loss", fontsize=14)
+        plt.savefig(path, bbox_inches="tight")
+        plt.close()
