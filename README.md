@@ -57,6 +57,10 @@ If the repository was cloned non-recursively previously, use `git submodule upda
 > 3. **aw** stands for **alphabet write**
 >    For eg, **aw100k** = **alphabet write 100k parameters**
 >    ∴ Generative model with 100k parameters
+> 
+> 4. **ae** stands for **auto encoder**
+>    For eg, **ae100k** = **auto encoder 100k parameters**
+>    ∴ Auto encoder-decoder model with 100k parameters
 
 > For example:
 > 1. `cl100kaw100k` is a **text generation model with 100k parameters trained on 100k tokens**

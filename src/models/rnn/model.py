@@ -63,7 +63,7 @@ class inference:
         tag = classes[i]
 
         return tag, confidence
-    
+
     def prepare_context(self, X):
         X = X.reshape(1, X.shape[0])
         return torch.tensor(X).to(RNNConfig.device)

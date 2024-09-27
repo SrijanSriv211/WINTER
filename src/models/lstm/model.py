@@ -44,7 +44,7 @@ class LSTM(nn.Module):
         # Initialize both hidden state and cell state
         hidden = (torch.zeros(LSTMConfig.n_layer, batch_size, LSTMConfig.n_hidden).to(LSTMConfig.device), torch.zeros(LSTMConfig.n_layer, batch_size, LSTMConfig.n_hidden).to(LSTMConfig.device))
         return hidden
-    
+
     def predict(self, x, temperature=1.0):
         out, _ = self(x)
 
