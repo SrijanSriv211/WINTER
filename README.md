@@ -1,4 +1,6 @@
 # WINTER
+***A breakthrough in Intelligence with Dialogue Applications***
+
 **WINTER** is an **open-source personal assistant** who lives **in your computer**.
 
 WINTER Stands for **Witty Intelligence with Natural Emotions and Rationality**
