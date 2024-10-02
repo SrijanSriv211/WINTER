@@ -14,7 +14,8 @@ class RegexTokenizer:
 		  example: {'<|endoftext|>': 100257}
 		"""
 
-		self.pattern = pattern
+		GPT4_SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
+		self.pattern = GPT4_SPLIT_PATTERN if pattern is None else pattern
 		self.special_tokens = {}
 		self.inverse_special_tokens = {}
 
@@ -28,7 +29,7 @@ class RegexTokenizer:
 		assert vocab_size >= 256
 
 		print("encoding text with", f"{Fore.WHITE}{Style.BRIGHT}{len(text)/1e6}M", "characters and", f"{Fore.WHITE}{Style.BRIGHT}{len(set(text))}", "unique characters")
-		text_chunks: list[str] = self.__gen_text_chunks__(text)
+		text_chunks: list[str] = self._gen_text_chunks(text)
 		ids = [list(ch.encode("utf-8")) for ch in text_chunks]
 		del text_chunks
 
@@ -45,9 +46,9 @@ class RegexTokenizer:
 		n_merges = vocab_size - 256
 		while i < n_merges:
 			# passing in stats will update it in place, adding up counts
-			stats = Counter([pair for chunk_ids in ids for pair in zip(chunk_ids, chunk_ids[1:])]).most_common(10)
+			stats = self._get_stats(ids)
 			# get the pairs with the highest counts
-			for pair, occurences in stats:
+			for pair, occurences in stats.items():
 				# mint a new token: assign it the next available id
 				idx = 256 + i
 
@@ -68,9 +69,11 @@ class RegexTokenizer:
 				)
 				last_print_time = time.time()
 				i += 1
+				if i >= n_merges:
+					break
 
 			# replace all occurrences of pair in ids with idx
-			ids = [self.__merge__(chunk_ids, merges) for chunk_ids in ids]
+			ids = [self._merge(chunk_ids, merges) for chunk_ids in ids]
 
 		print("time taken: ", f"{Fore.WHITE}{Style.BRIGHT}{calc_total_time(time.time()-start_time)}")
 
@@ -78,17 +81,17 @@ class RegexTokenizer:
 		self.merges = merges # used in encode()
 		self.vocab = vocab   # used in decode()
 
+	def _get_stats(self, ids):
+		return dict(Counter([pair for chunk_ids in ids for pair in zip(chunk_ids, chunk_ids[1:])]).most_common(10))
+
 	# split the text up into text chunks using regex pattern
-	def __gen_text_chunks__(self, text):
+	def _gen_text_chunks(self, text):
 		# the main GPT text split patterns, see
 		# https://github.com/openai/tiktoken/blob/main/tiktoken_ext/openai_public.py
-		GPT4_SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
-		pattern = GPT4_SPLIT_PATTERN if self.pattern is None else self.pattern
-		compiled_pattern = re.compile(pattern)
-
+		compiled_pattern = re.compile(self.pattern)
 		return re.findall(compiled_pattern, text)
 
-	def __merge__(self, ids, merges: dict):
+	def _merge(self, ids, merges: dict):
 		"""
 		In the list of integers (ids), replace all consecutive occurrences of pair with the new integer token idx
 		"""
@@ -138,7 +141,7 @@ class RegexTokenizer:
 
 		# find the pair with the lowest merge index
 		while len(ids) >= 2:
-			stats = get_stats(ids)
+			stats = self._get_stats([ids])
 			pair = min(stats, key=lambda p: self.merges.get(p, float("inf")))
 
 			# subtle: if there are no more merges available, the key will
@@ -150,15 +153,14 @@ class RegexTokenizer:
 				break # nothing else can be merged anymore
 
 			# otherwise let's merge the best pair (lowest merge index)
-			idx = self.merges[pair]
-			ids = merge(ids, pair, idx)
+			ids = self._merge(ids, self.merges)
 
 		return ids
 
 	def encode_ordinary(self, text):
 		"""Encoding that ignores any special tokens."""
 		# split text into chunks of text by categories defined in regex pattern
-		text_chunks = re.findall(self.compiled_pattern, text)
+		text_chunks = self._gen_text_chunks(text)
 
 		# all chunks of text are encoded separately, then results are joined
 		ids = []
@@ -268,13 +270,13 @@ class RegexTokenizer:
 				# errors='replace' to replace them with the replacement char �.
 				# this also means that we couldn't possibly use .vocab in load()
 				# because decoding in this way is a lossy operation!
-				s = self.__render_token__(token)
+				s = self._render_token(token)
 				# find the children of this token, if any
 				if idx in inverted_merges:
 					# if this token has children, render it nicely as a merge
 					idx0, idx1 = inverted_merges[idx]
-					s0 = self.__render_token__(self.vocab[idx0])
-					s1 = self.__render_token__(self.vocab[idx1])
+					s0 = self._render_token(self.vocab[idx0])
+					s1 = self._render_token(self.vocab[idx1])
 					f.write(f"[{s0}][{s1}] -> [{s}] {idx}\n")
 
 				else:
@@ -315,7 +317,7 @@ class RegexTokenizer:
 	# which distort the output (e.g. \n or much worse)
 	# https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python/19016117#19016117
 	# http://www.unicode.org/reports/tr44/#GC_Values_Table
-	def __replace_control_characters__(self, s: str) -> str:
+	def _replace_control_characters(self, s: str) -> str:
 		chars = []
 
 		for ch in s:
@@ -328,7 +330,7 @@ class RegexTokenizer:
 		return "".join(chars)
 
 	# pretty print a token, escaping control characters
-	def __render_token__(self, t: bytes) -> str:
+	def _render_token(self, t: bytes) -> str:
 		s = t.decode('utf-8', errors='replace')
-		s = self.__replace_control_characters__(s)
+		s = self._replace_control_characters(s)
 		return s
