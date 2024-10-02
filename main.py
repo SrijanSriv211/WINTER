@@ -1,66 +1,91 @@
-from src.tokenizers.bpe import RegexTokenizer
+from src.tokenizers.paper import RegexTokenizer
 from src.models.gpt import train, sample
 from src.shared.utils import dprint
 import torch
 
+raw_data = ""
+with open("data\\claw.txt", "r", encoding="utf-8") as f:
+    raw_data = f.read()
+
+with open("data\\jokes.txt", "r", encoding="utf-8") as f:
+    raw_data = "\n" + f.read()
+
+with open("data\\facts.txt", "r", encoding="utf-8") as f:
+    raw_data += "\n" + f.read()
+
+with open("data\\words.txt", "r", encoding="utf-8") as f:
+    raw_data += "\n" + f.read()
+
+with open("data\\data.txt", "r", encoding="utf-8") as f:
+    raw_data += "\n" + f.read()
+
+with open("data\\LLM data.txt", "r", encoding="utf-8") as f:
+    raw_data += "\n" + f.read()
+
 tokenizer = RegexTokenizer()
-tokenizer.load("bin\\cl2k.model")
-# tokenizer.train(data, 2279, verbose=True)
-# tokenizer.register_special_tokens({"<|pad|>": 2279, "<|sot|>": 2280, "<|eot|>": 2281})
+# tokenizer.load("bin\\cl2k.model")
+tokenizer.train(raw_data, 10000)
+# tokenizer.register_special_tokens({"<|pad|>": 2079, "<|sot|>": 2080, "<|eot|>": 2081})
 # tokenizer.save("bin\\cl2k")
 
-CONFIG = dict(
-    # checkpoints
-    checkpoints = None,
+# CONFIG = dict(
+#     # checkpoints
+#     checkpoints = {
+#         "path": "bin\\ck",
+#         "name": "claw",
+#         "interval": 1000
+#     },
 
-    # data
-    gradient_accumulation_steps = 1, # used to simulate larger batch sizes
-    batch_size = 32, # if gradient_accumulation_steps > 1, this is the micro-batch size
-    block_size = 50,
+#     # data
+#     gradient_accumulation_steps = 1, # used to simulate larger batch sizes
+#     batch_size = 16, # if gradient_accumulation_steps > 1, this is the micro-batch size
+#     block_size = 50,
 
-    # model
-    vocab_size = 2482,
-    n_layer = 4,
-    n_head = 4,
-    n_embd = 32,
-    dropout = 0.0, # for pretraining 0 is good, for finetuning try 0.1+
-    bias = False, # do we use bias inside LayerNorm and Linear layers?
+#     # model
+#     vocab_size = 2082,
+#     n_layer = 4,
+#     n_head = 4,
+#     n_embd = 32,
+#     dropout = 0.0, # for pretraining 0 is good, for finetuning try 0.1+
+#     bias = True, # do we use bias inside LayerNorm and Linear layers?
 
-    # adamw optimizer
-    learning_rate = 4e-3, # max learning rate
-    weight_decay = 1e-1,
-    beta1 = 0.9,
-    beta2 = 0.95,
-    grad_clip = 1, # clip gradients at this value, or disable if == 0.0
+#     # adamw optimizer
+#     learning_rate = 3e-4, # max learning rate
+#     weight_decay = 1e-1,
+#     beta1 = 0.9,
+#     beta2 = 0.95,
+#     grad_clip = 1, # clip gradients at this value, or disable if == 0.0
 
-    # learning rate decay settings
-    decay_lr = True, # whether to decay the learning rate
-    warmup_iters = 1000, # how many steps to warm up for
-    lr_decay_iters = 10000, # should be ~= max_iters per Chinchilla
-    min_lr = 1e-4, # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
+#     # learning rate decay settings
+#     decay_lr = True, # whether to decay the learning rate
+#     warmup_iters = 1000, # how many steps to warm up for
+#     lr_decay_iters = 10000, # should be ~= max_iters per Chinchilla
+#     min_lr = 3e-5, # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 
-    # system
-    device = "cpu", # examples: "cpu", "cuda", "cuda:0", "cuda:1" etc., or try "mps" on macbooks
-    seed = "auto", # examples: "auto", 1337 or any other number
-    compile = False # use PyTorch 2.0 to compile the model to be faster
-)
+#     # system
+#     device = "cpu", # examples: "cpu", "cuda", "cuda:0", "cuda:1" etc., or try "mps" on macbooks
+#     seed = "auto", # examples: "auto", 1337 or any other number
+#     compile = False # use PyTorch 2.0 to compile the model to be faster
+# )
 
-# with open("data\\claw.txt", "r", encoding="utf-8") as f:
-#     data = tokenizer.encode(f.read(), allowed_special="all")
-
-# t = train.train(CONFIG)
+# t = train(CONFIG)
 # t.from_scratch()
-# t.prepare_data(data, 1)
-# out = t.train(max_iters=10000, eval_interval=1000, log_interval=500)
-# t.plot("bin\\plot\\claw.png")
+# t.prepare_data(tokenizer.encode(raw_data), 1)
+# out = t.train(max_iters=10000, eval_interval=2000, log_interval=500)
+# t.plot("res\\claw.png")
 # torch.save(out, "bin\\claw.pth")
 
-# out = torch.load("bin\\claw.pth", map_location="cpu")
-# i = sample.sample(out, auto_load=True)
-# dprint(tokenizer.decode(i.generate(tokenizer.encode("Wake up WINTER daddy's home\n<|startoftext|>", allowed_special="all"), length=20)))
-# dprint(tokenizer.decode(i.generate(tokenizer.encode("Hi buddy!\n<|startoftext|>", allowed_special="all"), length=20)))
-# dprint(tokenizer.decode(i.generate(tokenizer.encode("<|startoftext|>", allowed_special="all"), length=20)))
+# # out = torch.load("bin\\claw.pth", map_location="cpu")
+# i = sample(out)
 
+# test = [
+#     "Wake up WINTER daddy's home\n<|sot|>",
+#     "Hi buddy!\n<|sot|>",
+#     "<|sot|>"
+# ]
+
+# for text in test:
+#     dprint(tokenizer.decode(i.generate(tokenizer.encode(text, allowed_special="all"))))
 
 """
 from src.shared.utils import dprint
