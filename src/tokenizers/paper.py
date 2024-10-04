@@ -18,6 +18,52 @@ class RegexTokenizer:
 		self.pattern = GPT4_SPLIT_PATTERN if pattern is None else pattern
 		self.special_tokens = {}
 		self.inverse_special_tokens = {}
+		self._from_pretrained = False
+
+	def from_pretrained(self, checkpoint):
+		"""Inverse of save() but only for the model file"""
+		assert checkpoint.endswith(".model")
+
+		# read the model file
+		merges = {}
+		special_tokens = {}
+		idx = 256
+
+		with open(checkpoint, 'r', encoding="utf-8") as f:
+			# read the pattern
+			self.pattern = f.readline().strip()
+			# read the special tokens
+			num_special = int(f.readline().strip())
+			for _ in range(num_special):
+				special, special_idx = f.readline().strip().split()
+				# special_tokens[special] = int(special_idx)
+
+			# read the merges
+			for line in f:
+				idx1, idx2 = map(int, line.split())
+				merges[(idx1, idx2)] = idx
+				idx += 1
+
+		self.merges = merges
+		self.vocab = self._build_vocab()
+		self._from_pretrained = True
+
+	def _get_state(self, text):
+		text_chunks: list[str] = self._gen_text_chunks(text)
+
+		if self._from_pretrained:
+			ids = [self.encode(ch) for ch in text_chunks]
+			merges = self.merges
+			vocab = self.vocab
+
+		else:
+			ids = [list(ch.encode("utf-8")) for ch in text_chunks]
+
+			# iteratively merge the most common pairs to create new tokens
+			merges = {} # (int, int) -> int
+			vocab = {idx: bytes([idx]) for idx in range(256)} # idx -> bytes
+
+		return ids, merges, vocab
 
 	def train(self, text, vocab_size):
 		"""
@@ -26,16 +72,11 @@ class RegexTokenizer:
 		- verbose: log output or not
 		"""
 
-		assert vocab_size >= 256
+		vocab_offset = 256 if not self._from_pretrained else len(self.vocab)
+		assert vocab_size >= vocab_offset
 
 		print("encoding text with", f"{Fore.WHITE}{Style.BRIGHT}{len(text)/1e6}M", "characters and", f"{Fore.WHITE}{Style.BRIGHT}{len(set(text))}", "unique characters")
-		text_chunks: list[str] = self._gen_text_chunks(text)
-		ids = [list(ch.encode("utf-8")) for ch in text_chunks]
-		del text_chunks
-
-		# iteratively merge the most common pairs to create new tokens
-		merges = {} # (int, int) -> int
-		vocab = {idx: bytes([idx]) for idx in range(256)} # idx -> bytes
+		ids, merges, vocab = self._get_state(text)
 
 		print("training on vocab size", f"{Fore.WHITE}{Style.BRIGHT}{vocab_size}")
 		start_time = time.time()
@@ -43,14 +84,14 @@ class RegexTokenizer:
 
 		# count the number of times every consecutive pair appears
 		i = 0
-		n_merges = vocab_size - 256
+		n_merges = vocab_size - vocab_offset
 		while i < n_merges:
 			# passing in stats will update it in place, adding up counts
 			stats = self._get_stats(ids)
 			# get the pairs with the highest counts
 			for pair, occurences in stats.items():
 				# mint a new token: assign it the next available id
-				idx = 256 + i
+				idx = vocab_offset + i
 
 				# save the merge
 				merges[pair] = idx
