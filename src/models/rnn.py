@@ -130,7 +130,7 @@ class train:
             },
 
             # data
-            batch_size = 32, # if gradient_accumulation_steps > 1, this is the micro-batch size
+            batch_size = 32,
 
             # model
             input_size = 2482,
