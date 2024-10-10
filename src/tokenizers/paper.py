@@ -88,7 +88,8 @@ class RegexTokenizer:
 		self.resume_training = True
 
 	def train(self, text, vocab_size: tuple):
-		assert len(vocab_size) == 3 and sum(vocab_size) >= self.merge_offset
+		assert len(vocab_size) == 3 and vocab_size[0] >= self.merge_offset and sum(vocab_size) >= self.merge_offset
+		total_vocab_size = sum(vocab_size) - self.merge_offset
 
 		text_chunks: list[str] = re.findall(self.compiled_pattern, text)
 		print(
@@ -99,9 +100,6 @@ class RegexTokenizer:
 		ids = [self.encode(ch) if self.resume_training else list(ch.encode("utf-8")) for ch in text_chunks]
 
 		print("training on vocab size", f"{Fore.WHITE}{Style.BRIGHT}{vocab_size}")
-		self._build_words_vocab(text_chunks, vocab_size)
-		del text_chunks
-
 		start_time = time.time()
 		last_print_time = time.time()
 
@@ -112,15 +110,7 @@ class RegexTokenizer:
 			# passing in stats will update it in place, adding up counts
 			stats = get_stats(ids)
 			# get the pairs with the highest counts
-			for pair, occurences in stats.items():
-				if self.vocab[pair[0]] + self.vocab[pair[1]] in self.word_tokens.values():
-					print(
-						f"{Fore.RED}{Style.BRIGHT}merge",
-						f"{Fore.WHITE}{Style.DIM}: ({self.vocab[pair[0]] + self.vocab[pair[1]]})",
-						f"{Fore.BLACK}{Style.BRIGHT}already exist in word list"
-					)
-					continue
-
+			for pair, occurrences in stats.items():
 				# mint a new token: assign it the next available id
 				idx = self.merge_offset + i
 
@@ -131,11 +121,11 @@ class RegexTokenizer:
 				# verbose
 				print(
 					f"{Fore.WHITE}{Style.BRIGHT}merge",
-					f"{Fore.BLACK}{Style.BRIGHT}[{i+1}/{n_merges}]"
-					": "
+					f"{Fore.BLACK}{Style.BRIGHT}[{i+1}/{total_vocab_size}]"
+					":",
 					f"{pair} -> {idx}",
 					f"{Fore.WHITE}{Style.DIM}({self.vocab[idx]})",
-					f"had {Fore.WHITE}{Style.BRIGHT}{occurences}{Style.RESET_ALL} occurrences"
+					f"had {Fore.WHITE}{Style.BRIGHT}{occurrences}{Style.RESET_ALL} occurrences"
 					f"{Style.RESET_ALL},",
 					f"{Fore.BLACK}{Style.BRIGHT}time taken: {calc_total_time(time.time()-last_print_time)}"
 				)
@@ -147,33 +137,64 @@ class RegexTokenizer:
 			# replace all occurrences of pair in ids with idx
 			ids = [merge(chunk_ids, self.merges) for chunk_ids in ids]
 
-		self.vocab.update(self.word_tokens)
-		self.vocab.update(self.phrase_tokens)
-		print(self.vocab)
+		# build word vocab
+		stats = dict(Counter([
+			chunk
+			for chunk in text_chunks
+			if chunk.startswith(" ") and len(chunk) > 4 and chunk not in self.vocab
+		]).most_common(vocab_size[1]))
+		word_tokens = {}
+
+		for word, occurrences in stats.items():
+			idx = vocab_size[0] + i
+			word_tokens[idx] = word
+
+			# verbose
+			print(
+				f"{Fore.WHITE}{Style.BRIGHT}word",
+				f"{Fore.BLACK}{Style.BRIGHT}[{i+1}/{total_vocab_size}]"
+				":",
+				f"{Fore.WHITE}{Style.DIM}{word}",
+				f"-> {idx}",
+				f"had {Fore.WHITE}{Style.BRIGHT}{occurrences}{Style.RESET_ALL} occurrences"
+				f"{Style.RESET_ALL},",
+				f"{Fore.BLACK}{Style.BRIGHT}time taken: {calc_total_time(time.time()-last_print_time)}"
+			)
+			last_print_time = time.time()
+			i += 1
+		self.word_tokens.update(word_tokens)
+		self.vocab.update(word_tokens)
+
+		# build phrase vocab
+		stats = dict(Counter([
+			"".join(pair)
+			for pair in zip(text_chunks, text_chunks[1:])
+			if pair[0].startswith(" ") and pair[1].startswith(" ")
+		]).most_common(vocab_size[2]))
+		phrase_tokens = {}
+
+		for phrase, occurrences in stats.items():
+			idx = vocab_size[1] + i
+			phrase_tokens[idx] = phrase
+
+			# verbose
+			print(
+				f"{Fore.WHITE}{Style.BRIGHT}phrase",
+				f"{Fore.BLACK}{Style.BRIGHT}[{i+1}/{total_vocab_size}]"
+				":",
+				f"{Fore.WHITE}{Style.DIM}{phrase}",
+				f"-> {idx}",
+				f"had {Fore.WHITE}{Style.BRIGHT}{occurrences}{Style.RESET_ALL} occurrences"
+				f"{Style.RESET_ALL},",
+				f"{Fore.BLACK}{Style.BRIGHT}time taken: {calc_total_time(time.time()-last_print_time)}"
+			)
+			last_print_time = time.time()
+			i += 1
+		self.phrase_tokens.update(phrase_tokens)
+		self.vocab.update(phrase_tokens)
+
 		# print the total time taken to do all the merges
 		print("time taken: ", f"{Fore.WHITE}{Style.BRIGHT}{calc_total_time(time.time()-start_time)}")
-
-	def _build_words_vocab(self, text_chunks, vocab_size):
-		frequent_words = [
-			i.encode("utf-8")
-			for i in dict(Counter([
-				chunk for chunk in text_chunks if chunk.startswith(" ")
-				if len(chunk) > 3
-			]).most_common(vocab_size[1] - vocab_size[0])).keys()
-		]
-		word_idx = [i + vocab_size[0] for i in range(vocab_size[1])]
-		self.word_tokens = dict(zip(word_idx, frequent_words))
-
-		frequent_phrases = [
-			i.encode("utf-8")
-			for i in dict(Counter([
-				"".join(pair)
-				for pair in zip(text_chunks, text_chunks[1:])
-				if pair[0].startswith(" ") and pair[1].startswith(" ")
-			]).most_common(vocab_size[2] - vocab_size[1])).keys()
-		]
-		phrase_idx = [i + vocab_size[1] for i in range(vocab_size[2])]
-		self.phrase_tokens = dict(zip(phrase_idx, frequent_phrases))
 
 	# special_tokens is a dictionary of str -> int
 	# example: {"<|endoftext|>": 100257}
@@ -236,53 +257,75 @@ class RegexTokenizer:
 
 		return ids
 
-	def encode(self, text, allowed_special="none_raise"):
+	def encode(self, text, allowed_special="none_raise", level="all"):
 		"""
 		Unlike encode_ordinary, this function handles special tokens.
 		- allowed_special: can be "all"|"none"|"none_raise" or a custom set of special tokens
 		  if none_raise, then an error is raised if any special token is encountered in text
 		  this is the default tiktoken behavior right now as well
 		  any other behavior is either annoying, or a major footgun
+		- level: can be "all"|"subword"|"word"|"phrase"
 		"""
 
 		# decode the user desire w.r.t. handling of special tokens
-		special = None
+		extra = None
 
 		if allowed_special == "all":
-			special = self.special_tokens
+			extra = self.special_tokens
 
 		elif allowed_special == "none":
-			special = {}
+			extra = {}
 
 		elif allowed_special == "none_raise":
-			special = {}
+			extra = {}
 			assert all(token not in text for token in self.special_tokens)
 
 		elif isinstance(allowed_special, set):
-			special = {k: v for k, v in self.special_tokens.items() if k in allowed_special}
+			extra = {k: v for k, v in self.special_tokens.items() if k in allowed_special}
 
 		else:
 			raise ValueError(f"allowed_special={allowed_special} not understood")
 
-		# shortcut: if no special tokens, just use the ordinary encoding
-		if not special:
+		if level != "subword":
+			if level == "all":
+				if not extra:
+					extra = {}
+				extra.update(self.word_tokens)
+				extra.update(self.phrase_tokens)
+
+			elif level == "word":
+				if not extra:
+					extra = {}
+				extra.update(self.word_tokens)
+
+			elif level == "phrase":
+				if not extra:
+					extra = {}
+				extra.update(self.phrase_tokens)
+
+			else:
+				raise ValueError(f"level={level} not understood")
+
+		# shortcut: if no extra tokens, just use the ordinary encoding
+		if not extra:
 			return self.encode_ordinary(text)
 
-		# otherwise, we have to be careful with potential special tokens in text
-		# we handle special tokens by splitting the text
-		# based on the occurrence of any exact match with any of the special tokens
+		# otherwise, we have to be careful with potential extra tokens in text
+		# we handle extra tokens by splitting the text
+		# based on the occurrence of any exact match with any of the extra tokens
 		# we can use re.split for this. note that surrounding the pattern with ()
-		# makes it into a capturing group, so the special tokens will be included
-		special_pattern = "(" + "|".join(re.escape(k) for k in special) + ")"
-		special_chunks = re.split(special_pattern, text)
+		# makes it into a capturing group, so the extra tokens will be included
+		extra_pattern = "(" + "|".join(re.escape(k) for k in extra) + ")"
+		extra_chunks = re.split(extra_pattern, text)
+		print(extra_chunks)
 
-		# now all the special characters are separated from the rest of the text
+		# now all the extra characters are separated from the rest of the text
 		# all chunks of text are encoded separately, then results are joined
 		ids = []
-		for part in special_chunks:
-			# this is a special token, encode it separately as a special case
-			if part in special:
-				ids.append(special[part])
+		for part in extra_chunks:
+			# this is a extra token, encode it separately as a extra case
+			if part in extra:
+				ids.append(extra[part])
 
 			# this is an ordinary sequence, encode it normally
 			else:
@@ -310,12 +353,12 @@ class RegexTokenizer:
 
 			# write the word tokens, first the number of them, then each one
 			f.write(f"{len(self.word_tokens)}\n")
-			for word, idx in self.word_tokens.items():
+			for idx, word in self.word_tokens.items():
 				f.write(f"{word} {idx}\n")
 
 			# write the phrase tokens, first the number of them, then each one
 			f.write(f"{len(self.phrase_tokens)}\n")
-			for phrase, idx in self.phrase_tokens.items():
+			for idx, phrase in self.phrase_tokens.items():
 				f.write(f"{phrase} {idx}\n")
 
 			# the merges dict
@@ -347,11 +390,15 @@ class RegexTokenizer:
 					# (this should just be the first 256 tokens, the bytes)
 					f.write(f"[{s}] {idx}\n")
 
-	def load(self, checkpoint: str, level="all"):
+	def load(self, checkpoint: str):
 		assert checkpoint.endswith(".model")
 
 		# read the model file
 		idx = 256
+		self.merges = {}
+		self.word_tokens = {}
+		self.phrase_tokens = {}
+		self.special_tokens = {}
 
 		with open(checkpoint, "r", encoding="utf-8") as f:
 			# read the pattern
@@ -363,26 +410,27 @@ class RegexTokenizer:
 				special, special_idx = f.readline().strip().split()
 				self.special_tokens[special] = int(special_idx)
 
-			if level == "all" or level == "word":
-				# read the word tokens
-				num_word = int(f.readline().strip())
-				for _ in range(num_word):
-					word, word_idx = f.readline().strip().split()
-					self.word_tokens[word] = int(word_idx)
+			# read the word tokens
+			num_word = int(f.readline().strip())
+			for _ in range(num_word):
+				x = f.readline()
+				word_idx = x.split()[-1]
+				word = x.replace(" " + word_idx, "")
+				self.word_tokens[word] = int(word_idx)
 
-			if level == "all" or level == "phrase":
-				# read the phrase tokens
-				num_phrase = int(f.readline().strip())
-				for _ in range(num_phrase):
-					phrase, phrase_idx = f.readline().strip().split()
-					self.phrase_tokens[phrase] = int(phrase_idx)
+			# read the phrase tokens
+			num_phrase = int(f.readline().strip())
+			for _ in range(num_phrase):
+				x = f.readline()
+				phrase_idx = x.split()[-1]
+				phrase = x.replace(" " + phrase_idx, "")
+				self.phrase_tokens[phrase] = int(phrase_idx)
 
-			if level == "all" or level == "subword":
-				# read the merges
-				for line in f:
-					idx1, idx2 = map(int, line.split())
-					self.merges[(idx1, idx2)] = idx
-					idx += 1
+			# read the merges
+			for line in f:
+				idx1, idx2 = map(int, line.split())
+				self.merges[(idx1, idx2)] = idx
+				idx += 1
 
 		# vocab is simply and deterministically derived from merges
 		self.vocab = {idx: bytes([idx]) for idx in range(256)}
