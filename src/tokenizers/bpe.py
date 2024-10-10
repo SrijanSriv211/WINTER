@@ -7,6 +7,7 @@ import regex as re
 init(autoreset=True)
 
 # the main GPT text split patterns, see
+# https://stackoverflow.com/a/63871635/18121288
 # https://github.com/openai/tiktoken/blob/main/tiktoken_ext/openai_public.py
 GPT4_SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
 
