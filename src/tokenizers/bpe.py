@@ -12,8 +12,12 @@ init(autoreset=True)
 GPT4_SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
 
 # a few helper functions useful for both RegexTokenizer
-def get_stats(ids):
-	return dict(Counter([pair for chunk_ids in ids for pair in zip(chunk_ids, chunk_ids[1:])]).most_common(10))
+def get_stats(ids, most_common):
+	return dict(Counter([
+		pair
+		for chunk_ids in ids
+		for pair in zip(chunk_ids, chunk_ids[1:])
+	]).most_common(most_common))
 
 def merge(ids, merges: dict):
 	"""
@@ -81,8 +85,8 @@ class RegexTokenizer:
 
 	def from_pretrained(self, checkpoint):
 		self.load(checkpoint)
+		self.merge_offset = len(self.vocab) - len(self.special_tokens)
 		self.special_tokens = {}
-		self.merge_offset = len(self.vocab)
 		self.resume_training = True
 
 	def train(self, text, vocab_size):
@@ -105,7 +109,12 @@ class RegexTokenizer:
 		n_merges = vocab_size - self.merge_offset
 		while i < n_merges:
 			# passing in stats will update it in place, adding up counts
-			stats = get_stats(ids)
+			stats = dict([
+				(pair, occurrences)
+				for pair, occurrences in get_stats(ids, most_common=1000).items()
+				if self.vocab[pair[0]] + self.vocab[pair[1]] not in self.vocab.values()
+			][:10])
+
 			# get the pairs with the highest counts
 			for pair, occurrences in stats.items():
 				# mint a new token: assign it the next available id
@@ -167,7 +176,7 @@ class RegexTokenizer:
 
 		# find the pair with the lowest merge index
 		while len(ids) >= 2:
-			stats = get_stats([ids])
+			stats = get_stats([ids], most_common=10)
 			pair = min(stats, key=lambda p: self.merges.get(p, float("inf")))
 
 			# subtle: if there are no more merges available, the key will
@@ -271,8 +280,8 @@ class RegexTokenizer:
 				f.write(f"{special} {idx}\n")
 
 			# the merges dict
-			for idx1, idx2 in self.merges:
-				f.write(f"{idx1} {idx2}\n")
+			for (idx1, idx2), idx3 in self.merges.items():
+				f.write(f"{idx1} {idx2} {idx3}\n")
 
 		# write the vocab: for the human to look at
 		vocab_file = file_prefix + ".vocab"
@@ -303,7 +312,6 @@ class RegexTokenizer:
 		assert checkpoint.endswith(".model")
 
 		# read the model file
-		idx = 256
 		self.merges = {}
 		self.special_tokens = {}
 
@@ -319,9 +327,8 @@ class RegexTokenizer:
 
 			# read the merges
 			for line in f:
-				idx1, idx2 = map(int, line.split())
-				self.merges[(idx1, idx2)] = idx
-				idx += 1
+				idx1, idx2, idx3 = map(int, line.split())
+				self.merges[(idx1, idx2)] = idx3
 
 		# vocab is simply and deterministically derived from merges
 		self.vocab = {idx: bytes([idx]) for idx in range(256)}
