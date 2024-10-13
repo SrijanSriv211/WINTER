@@ -406,6 +406,7 @@ class train:
         # a dict for keep track of all the losses to be plotted.
         self.losses = {
             "train": [],
+            "eval": [],
             "val": []
         }
 
@@ -439,7 +440,7 @@ class train:
         self.hyperparams = dict(dropout=self.config["dropout"])
         # read off the created config params, so we can store them into checkpoint correctly
         for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
-            self.hyperparams[k] = getattr(checkpoint["hyperparams"], k)
+            self.hyperparams[k] = checkpoint["hyperparams"][k]
 
         gptconf = GPTConfig(**self.hyperparams)
 
@@ -568,8 +569,8 @@ class train:
                         f"{Fore.RESET}{Style.RESET_ALL},",
                         f"mfu {Fore.WHITE}{Style.BRIGHT}{running_mfu*100:.2f}"
                         f"{Fore.RESET}{Style.RESET_ALL},",
-                        f"lr {Fore.WHITE}{Style.BRIGHT}{lr:.4f}",
-                        f"{Fore.RESET}{Style.RESET_ALL},"
+                        f"lr {Fore.WHITE}{Style.BRIGHT}{lr:.4f}"
+                        f"{Fore.RESET}{Style.RESET_ALL},",
                         f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(time.time() - eval_time)}"
                     )
 
@@ -608,15 +609,16 @@ class train:
                 # flush the gradients as soon as we can, no need for this memory anymore
                 self.optimizer.zero_grad(set_to_none=True)
 
-                # timing and logging
-                t1 = time.time()
-                dt = t1 - t0
-                t0 = t1
-
                 if self.iter_num % log_interval == 0:
+                    # timing and logging
+                    t1 = time.time()
+                    dt = t1 - t0
+                    t0 = t1
+
                     # get loss as float. note: this is a CPU-GPU sync point
                     # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
                     lossf = loss.item() * self.config["gradient_accumulation_steps"]
+                    self.losses["eval"].append(lossf)
 
                     if local_iter_num >= 5: # let the training loop settle a bit
                         mfu = self.model.estimate_mfu(self.config["batch_size"] * self.config["gradient_accumulation_steps"], dt)
@@ -660,18 +662,19 @@ class train:
         plt.style.use("seaborn-v0_8-dark")
 
         for param in ["figure.facecolor", "axes.facecolor", "savefig.facecolor"]:
-            plt.rcParams[param] = "#212946"  # bluish dark grey
+            plt.rcParams[param] = "#030407"
 
         for param in ["text.color", "axes.labelcolor", "xtick.color", "ytick.color"]:
-            plt.rcParams[param] = "0.9"  # very light grey
+            plt.rcParams[param] = "0.9"
 
         plt.figure(figsize=(18, 8))
         plt.plot(self.losses["train"], label="train loss")
+        plt.plot(self.losses["eval"], label="eval loss")
         plt.plot(self.losses["val"], label="val loss")
 
         plt.xlabel("iteration", fontsize=12)
         plt.ylabel("value", fontsize=12)
         plt.legend(fontsize=12)
-        plt.title("train-val loss", fontsize=14)
+        plt.title("train-eval-val loss", fontsize=14)
         plt.savefig(path, bbox_inches="tight")
         plt.close()

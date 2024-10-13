@@ -99,6 +99,7 @@ class RegexTokenizer:
 			f"{Fore.WHITE}{Style.BRIGHT}{len(set(text_chunks))}", "unique words"
 		)
 		ids = [self.encode(ch) if self.resume_training else list(ch.encode("utf-8")) for ch in text_chunks]
+		del text_chunks
 
 		print("training on vocab size", f"{Fore.WHITE}{Style.BRIGHT}{vocab_size}")
 		start_time = time.time()

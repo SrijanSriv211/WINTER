@@ -301,10 +301,10 @@ class train:
         plt.style.use("seaborn-v0_8-dark")
 
         for param in ["figure.facecolor", "axes.facecolor", "savefig.facecolor"]:
-            plt.rcParams[param] = "#212946"  # bluish dark grey
+            plt.rcParams[param] = "#030407"
 
         for param in ["text.color", "axes.labelcolor", "xtick.color", "ytick.color"]:
-            plt.rcParams[param] = "0.9"  # very light grey
+            plt.rcParams[param] = "0.9"
 
         plt.figure(figsize=(18, 8))
         plt.plot(self.losses["train"], label="train loss")
