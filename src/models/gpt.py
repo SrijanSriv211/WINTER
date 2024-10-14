@@ -3,9 +3,9 @@ from colorama import Style, Fore, init
 from torch.nn import functional as F
 from contextlib import nullcontext
 from dataclasses import dataclass
+import torch.nn as nn, torch.amp, torch
+import inspect, pickle, time, math, os
 import matplotlib.pyplot as plt
-import inspect, time, math, os
-import torch.nn as nn, torch
 
 init(autoreset=True)
 
@@ -300,23 +300,30 @@ class GPT(nn.Module):
 # ---------------------------------------------------------------------------
 
 class sample:
-    def __init__(self, checkpoint, device="auto", auto_load=True):
+    def __init__(self, device="auto"):
         self.device = ("cuda" if torch.cuda.is_available() else "cpu") if device == "auto" else device
 
-        self.state_dict = checkpoint["model"]
-        self.gptconf = GPTConfig(**checkpoint["hyperparams"])
+    def load(self, checkpoint, compile=False):
+        # create an instance of GPT
+        gptconf = GPTConfig(**checkpoint["hyperparams"])
+        self.model = GPT(gptconf)
 
-        # automatically load the model
-        if auto_load: self.load()
+        # remove `_orig_mod.` prefix from state_dict (if it's there)
+        state_dict = checkpoint["model"]
+        unwanted_prefix = '_orig_mod.'
 
-    def load(self):
-        # create an instance of RNN
-        self.model = GPT(self.gptconf)
+        for k, v in list(state_dict.items()):
+            if k.startswith(unwanted_prefix):
+                state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
 
         # load the saved model state_dict
-        self.model.load_state_dict(self.state_dict)
+        self.model.load_state_dict(state_dict)
         self.model.to(self.device)
-        self.model.eval()  # set the model to evaluation mode
+        self.model.eval() # set the model to evaluation mode
+
+        if compile:
+            #NOTE: backend="inductor" is giving some errors so switched to aot_eager.
+            self.model = torch.compile(self.model, backend="aot_eager") # requires PyTorch 2.0
 
     # use the model for generation or other tasks
     def generate(self, encoded_text=None, length=100, temperature=1.0, top_k=None):
@@ -327,7 +334,7 @@ class sample:
         """
 
         return self.model.generate(self.prepare_context(encoded_text), max_new_tokens=length, temperature=temperature, top_k=top_k)[0].tolist()
-    
+
     def prepare_context(self, encoded_text):
         if encoded_text == None:
             return torch.zeros((1, 1), dtype=torch.long, device=self.device)
@@ -458,8 +465,14 @@ class train:
             self.model.crop_block_size(self.config["block_size"])
             self.hyperparams["block_size"] = self.config["block_size"] # so that the checkpoint will have the right value
 
-    def prepare_data(self, encoded_data, data_division=1):
+    def prepare_data(self, encoded_data, path="bin", data_division=1):
         """
+        Generate `train.bin` and `val.bin` from encoded data.
+
+        Use this only once when you don't have `train.bin` and `val.bin`
+
+        If you already have `train.bin` and `val.bin`, then use `get_data` function.
+
         1. `encoded_data`: The encoded training text data.
 
         For eg,
@@ -468,27 +481,66 @@ class train:
         ```
 
         2. `data_division`: The first `(data_division * 100)%` will be train, rest val
+        3. `path`: Path where `train.bin` and `val.bin` will be saved
         """
 
         data = torch.tensor(encoded_data, dtype=torch.long)
 
         # train and test splits
         n = int(data_division * len(data)) # the first (data_division * 100)% will be train, rest val
-        self.train_data = data[:n]
-        self.val_data = data[n:] if 0 < data_division < 1 else data[:n]
+        train_data = data[:n]
+        val_data = data[n:] if 0 < data_division < 1 else data[:n]
+
+        self.train_data = f"{path}\\train.bin"
+        self.val_data = f"{path}\\val.bin"
+
+        with open(self.train_data, "wb") as f:
+            pickle.dump(train_data, f)
+
+        with open(self.val_data, "wb") as f:
+            pickle.dump(val_data, f)
 
         # print the number of tokens
         print(f"{Fore.WHITE}{Style.BRIGHT}{(len(data)/1e6)}M", "total tokens")
         print(
-            f"{Fore.WHITE}{Style.BRIGHT}{(len(self.train_data)/1e6)}M", "train tokens,",
-            f"{Fore.WHITE}{Style.BRIGHT}{(len(self.val_data)/1e6)}M", "test tokens",
+            f"{Fore.WHITE}{Style.BRIGHT}{(len(train_data)/1e6)}M", "train tokens,",
+            f"{Fore.WHITE}{Style.BRIGHT}{(len(val_data)/1e6)}M", "test tokens",
             f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if not (0 < data_division < 1) else ""
         )
 
+    def get_data(self, train, val):
+        """
+        1. `train`: Path to training data (`train.bin`)
+        2. `val`: Path to validation data (`val.bin`)
+        """
+
+        self.train_data = train
+        self.val_data = val
+
+        # Try to load and check all the data
+        with open(self.train_data, "rb") as f:
+            train_data = len(pickle.load(f))
+
+        with open(self.val_data, "rb") as f:
+            val_data = len(pickle.load(f))
+
+        data = train_data + val_data
+
+        # print the number of tokens
+        print(f"{Fore.WHITE}{Style.BRIGHT}{(data/1e6)}M", "total tokens")
+        print(
+            f"{Fore.WHITE}{Style.BRIGHT}{(train_data/1e6)}M", "train tokens,",
+            f"{Fore.WHITE}{Style.BRIGHT}{(val_data/1e6)}M", "test tokens",
+            f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if not (0 < (train_data/data) < 1) else ""
+        )
+
     # data loading
+    # generate a small batch of data of inputs x and targets y
     def get_batch(self, split):
-        # generate a small batch of data of inputs x and targets y
-        data = self.train_data if split == "train" else self.val_data
+        # We reload data every batch to avoid a memory leak
+        with open(self.train_data if split == "train" else self.val_data, "rb") as f:
+            data = pickle.load(f)
+
         ix = torch.randint(len(data) - self.config["block_size"], (self.config["batch_size"],))
         x = torch.stack([data[i:i+self.config["block_size"]] for i in ix])
         y = torch.stack([data[i+1:i+self.config["block_size"]+1] for i in ix])
@@ -534,12 +586,13 @@ class train:
         print(f"{Fore.WHITE}{Style.BRIGHT}{self.model.get_num_params()/1e6}M", "parameters")
 
         # initialize a GradScaler. If enabled=False scaler is a no-op
-        scaler = torch.cuda.amp.GradScaler(enabled=False)
+        scaler = torch.amp.GradScaler(enabled=False)
 
         # compile the model
         if self.config["compile"]:
             print(f"Compiling the model... {Fore.BLACK}{Style.BRIGHT}(takes a ~minute)")
-            self.model = torch.compile(self.model) # requires PyTorch 2.0
+            #NOTE: backend="inductor" is giving some errors so switched to aot_eager.
+            self.model = torch.compile(self.model, backend="aot_eager") # requires PyTorch 2.0
 
         # training loop
         X, Y = self.get_batch("train") # fetch the very first batch
@@ -609,7 +662,7 @@ class train:
                 # flush the gradients as soon as we can, no need for this memory anymore
                 self.optimizer.zero_grad(set_to_none=True)
 
-                if self.iter_num % log_interval == 0:
+                if self.iter_num % log_interval == 0 or self.iter_num <= 10:
                     # timing and logging
                     t1 = time.time()
                     dt = t1 - t0
@@ -669,12 +722,21 @@ class train:
 
         plt.figure(figsize=(18, 8))
         plt.plot(self.losses["train"], label="train loss")
-        plt.plot(self.losses["eval"], label="eval loss")
         plt.plot(self.losses["val"], label="val loss")
 
         plt.xlabel("iteration", fontsize=12)
         plt.ylabel("value", fontsize=12)
         plt.legend(fontsize=12)
-        plt.title("train-eval-val loss", fontsize=14)
-        plt.savefig(path, bbox_inches="tight")
+        plt.title("train-val loss", fontsize=14)
+        plt.savefig(path + "train-val.png", bbox_inches="tight")
+        plt.close()
+
+        plt.figure(figsize=(18, 8))
+        plt.plot(self.losses["eval"], label="eval loss")
+
+        plt.xlabel("iteration", fontsize=12)
+        plt.ylabel("value", fontsize=12)
+        plt.legend(fontsize=12)
+        plt.title("eval loss", fontsize=14)
+        plt.savefig(path + "eval.png", bbox_inches="tight")
         plt.close()
