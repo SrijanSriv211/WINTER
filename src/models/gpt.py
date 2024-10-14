@@ -421,8 +421,6 @@ class train:
         print("Training on", f"{Fore.YELLOW}{Style.BRIGHT}{self.device}", f"{Fore.WHITE}{Style.BRIGHT}({torch.initial_seed()})")
 
     def from_scratch(self):
-        self.iter_num = 1
-
         self.hyperparams = dict(dropout=self.config["dropout"])
         # read off the created config params, so we can store them into checkpoint correctly
         for k in ["n_layer", "n_head", "n_embd", "block_size", "bias", "vocab_size"]:
@@ -435,6 +433,7 @@ class train:
 
         # optimizer
         self.optimizer = self.model.configure_optimizers(self.config["weight_decay"], self.config["learning_rate"], (self.config["beta1"], self.config["beta2"]), self.config["device"])
+        self.iter_num = 0
 
     def from_pretrained(self, checkpoint):
         """
@@ -662,7 +661,7 @@ class train:
                 # flush the gradients as soon as we can, no need for this memory anymore
                 self.optimizer.zero_grad(set_to_none=True)
 
-                if self.iter_num % log_interval == 0 or self.iter_num <= 10:
+                if self.iter_num % log_interval == 0:
                     # timing and logging
                     t1 = time.time()
                     dt = t1 - t0
@@ -722,21 +721,12 @@ class train:
 
         plt.figure(figsize=(18, 8))
         plt.plot(self.losses["train"], label="train loss")
+        plt.plot(self.losses["eval"], label="eval loss")
         plt.plot(self.losses["val"], label="val loss")
 
         plt.xlabel("iteration", fontsize=12)
         plt.ylabel("value", fontsize=12)
         plt.legend(fontsize=12)
-        plt.title("train-val loss", fontsize=14)
-        plt.savefig(path + "train-val.png", bbox_inches="tight")
-        plt.close()
-
-        plt.figure(figsize=(18, 8))
-        plt.plot(self.losses["eval"], label="eval loss")
-
-        plt.xlabel("iteration", fontsize=12)
-        plt.ylabel("value", fontsize=12)
-        plt.legend(fontsize=12)
-        plt.title("eval loss", fontsize=14)
-        plt.savefig(path + "eval.png", bbox_inches="tight")
+        plt.title("train-eval-val loss", fontsize=14)
+        plt.savefig(path, bbox_inches="tight")
         plt.close()
