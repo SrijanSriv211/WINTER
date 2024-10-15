@@ -580,7 +580,7 @@ class train:
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
         return self.config["min_lr"] + coeff * (self.config["learning_rate"] - self.config["min_lr"])
 
-    def train(self, max_iters=1000, eval_interval=100, log_interval=100, eval_iters=100):
+    def train(self, max_iters=1000, eval_interval=100, log_interval=100, eval_iters=100, early_log_interval=10):
         # report number of parameters
         print(f"{Fore.WHITE}{Style.BRIGHT}{self.model.get_num_params()/1e6}M", "parameters")
 
@@ -596,7 +596,7 @@ class train:
         # training loop
         X, Y = self.get_batch("train") # fetch the very first batch
         start_time = time.time()
-        eval_time = time.time()
+        eval_t0 = time.time()
         t0 = time.time()
         local_iter_num = 0 # number of iterations in the lifetime of this process
         running_mfu = -1.0
@@ -610,6 +610,10 @@ class train:
                 # evaluate the loss on train/val sets and write checkpoints
                 if self.iter_num % eval_interval == 0:
                     losses = self.estimate_loss(eval_iters)
+                    # timing and logging
+                    eval_t1 = time.time()
+                    eval_dt = eval_t1 - eval_t0
+                    eval_t0 = eval_t1
 
                     print(
                         f"{Fore.WHITE}{Style.BRIGHT}step",
@@ -623,12 +627,11 @@ class train:
                         f"{Fore.RESET}{Style.RESET_ALL},",
                         f"lr {Fore.WHITE}{Style.BRIGHT}{lr:.4f}"
                         f"{Fore.RESET}{Style.RESET_ALL},",
-                        f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(time.time() - eval_time)}"
+                        f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(eval_dt)}"
                     )
 
                     self.losses["train"].append(losses["train"])
                     self.losses["val"].append(losses["val"])
-                    eval_time = time.time()
 
                 if self.config["checkpoints"] and self.iter_num % self.config["checkpoints"]["interval"] == 0:
                     if not os.path.isdir(self.config["checkpoints"]["path"]):
@@ -661,8 +664,8 @@ class train:
                 # flush the gradients as soon as we can, no need for this memory anymore
                 self.optimizer.zero_grad(set_to_none=True)
 
-                if self.iter_num % log_interval == 0:
-                    # timing and logging
+                # timing and logging
+                if (self.iter_num % log_interval == 0) or (self.iter_num <= log_interval and self.iter_num % early_log_interval == 0):
                     t1 = time.time()
                     dt = t1 - t0
                     t0 = t1
