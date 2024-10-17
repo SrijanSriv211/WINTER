@@ -410,13 +410,6 @@ class train:
         ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[dtype]
         self.ctx = nullcontext() if self.device == "cpu" else torch.amp.autocast(device_type=self.device, dtype=ptdtype)
 
-        # a dict for keep track of all the losses to be plotted.
-        self.losses = {
-            "train": [],
-            "eval": [],
-            "val": []
-        }
-
         # print the device
         print("Training on", f"{Fore.YELLOW}{Style.BRIGHT}{self.device}", f"{Fore.WHITE}{Style.BRIGHT}({torch.initial_seed()})")
 
@@ -433,13 +426,37 @@ class train:
 
         # optimizer
         self.optimizer = self.model.configure_optimizers(self.config["weight_decay"], self.config["learning_rate"], (self.config["beta1"], self.config["beta2"]), self.config["device"])
+
+        # a dict for keep track of all the losses to be plotted.
+        self.metrics = {
+            "train": [],
+            "eval": [],
+            "val": [],
+            "mfu": [],
+            "lr": []
+        }
         self.iter_num = 0
 
-    def from_pretrained(self, checkpoint):
+    def from_pretrained(self, checkpoint: dict):
         """
         Load the pretrained model from path, for eg, `from_pretrained(torch.load("bin\\model\\ckpt.pth", map_location=self.device))`
         """
 
+        # make loading pretrained models backwards compatible with previously trained models
+        metrics = [checkpoint[i] for i in ["metrics", "losses"] if i in checkpoint.keys()]
+        print(metrics)
+        self.metrics = {
+            "train": [],
+            "eval": [],
+            "val": [],
+            "mfu": [],
+            "lr": []
+        } if not metrics else metrics[0]
+        for i in ["mfu", "lr"]:
+            if i not in self.metrics.keys():
+                self.metrics[i] = []
+
+        # load the state dict and current iteration number of the model
         state_dict = checkpoint["model"]
         self.iter_num = checkpoint["iter_num"]
 
@@ -452,6 +469,15 @@ class train:
 
         # create an instance of GPT
         self.model = GPT(gptconf)
+
+        # remove `_orig_mod.` prefix from state_dict (if it's there)
+        state_dict = checkpoint["model"]
+        unwanted_prefix = '_orig_mod.'
+
+        for k, v in list(state_dict.items()):
+            if k.startswith(unwanted_prefix):
+                state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
+
         self.model.load_state_dict(state_dict)
         self.model.to(self.device)
 
@@ -623,15 +649,14 @@ class train:
                         f"{Fore.RESET}{Style.RESET_ALL},",
                         f"val loss {Fore.WHITE}{Style.BRIGHT}{losses["val"]:.4f}"
                         f"{Fore.RESET}{Style.RESET_ALL},",
-                        f"mfu {Fore.WHITE}{Style.BRIGHT}{running_mfu*100:.2f}"
-                        f"{Fore.RESET}{Style.RESET_ALL},",
                         f"lr {Fore.WHITE}{Style.BRIGHT}{lr:.4f}"
                         f"{Fore.RESET}{Style.RESET_ALL},",
                         f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(eval_dt)}"
                     )
 
-                    self.losses["train"].append(losses["train"])
-                    self.losses["val"].append(losses["val"])
+                    self.metrics["train"].append(losses["train"])
+                    self.metrics["val"].append(losses["val"])
+                    self.metrics["lr"].append(lr)
 
                 if self.config["checkpoints"] and self.iter_num % self.config["checkpoints"]["interval"] == 0:
                     if not os.path.isdir(self.config["checkpoints"]["path"]):
@@ -673,7 +698,7 @@ class train:
                     # get loss as float. note: this is a CPU-GPU sync point
                     # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
                     lossf = loss.item() * self.config["gradient_accumulation_steps"]
-                    self.losses["eval"].append(lossf)
+                    self.metrics["eval"].append(lossf)
 
                     if local_iter_num >= 5: # let the training loop settle a bit
                         mfu = self.model.estimate_mfu(self.config["batch_size"] * self.config["gradient_accumulation_steps"], dt)
@@ -689,6 +714,7 @@ class train:
                         f"{Fore.RESET}{Style.RESET_ALL},",
                         f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(dt)}"
                     )
+                    self.metrics["mfu"].append(running_mfu)
 
                 self.iter_num += 1
                 local_iter_num += 1
@@ -710,10 +736,25 @@ class train:
             "optimizer": self.optimizer.state_dict(),
             "hyperparams": self.hyperparams,
             "iter_num": self.iter_num,
-            "device": self.device
+            "device": self.device,
+            "metrics": self.metrics
         }
 
     def plot(self, path):
+        self._graph("train-val loss", [(self.metrics["train"], "train loss"), (self.metrics["val"], "val loss")], path + "-train-val.png")
+        self._graph("eval loss", [(self.metrics["eval"], "eval loss")], path + "-eval.png")
+        self._graph("mfu", [(self.metrics["mfu"], "mfu")], path + "-mfu.png")
+        self._graph("lr", [(self.metrics["lr"], "lr")], path + "-lr.png")
+
+        self._graph("metrics", [
+            (self.metrics["train"], "train loss"),
+            (self.metrics["eval"], "eval loss"),
+            (self.metrics["val"], "val loss"),
+            (self.metrics["mfu"], "mfu"),
+            (self.metrics["lr"], "lr")
+        ], path + ".png")
+
+    def _graph(self, title, plot_data, save_path):
         plt.style.use("seaborn-v0_8-dark")
 
         for param in ["figure.facecolor", "axes.facecolor", "savefig.facecolor"]:
@@ -723,13 +764,13 @@ class train:
             plt.rcParams[param] = "0.9"
 
         plt.figure(figsize=(18, 8))
-        plt.plot(self.losses["train"], label="train loss")
-        plt.plot(self.losses["eval"], label="eval loss")
-        plt.plot(self.losses["val"], label="val loss")
+
+        for losses, label in plot_data:
+            plt.plot(losses, label=label)
 
         plt.xlabel("iteration", fontsize=12)
         plt.ylabel("value", fontsize=12)
         plt.legend(fontsize=12)
-        plt.title("train-eval-val loss", fontsize=14)
-        plt.savefig(path, bbox_inches="tight")
+        plt.title(title, fontsize=14)
+        plt.savefig(save_path, bbox_inches="tight")
         plt.close()
