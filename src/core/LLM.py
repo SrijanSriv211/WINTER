@@ -1,7 +1,7 @@
 from groq import Groq
 import os
 
-class LLM:
+class GROQ:
     def __init__(self, system, GroqAPI_path, conversation_path=None):
         self.system = system
 
