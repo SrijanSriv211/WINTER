@@ -1,5 +1,5 @@
 # WINTER
-***A breakthrough in Intelligence with Dialogue Applications***
+***A breakthrough in Intelligence with Language Applications***
 
 **WINTER** is an **open-source personal assistant** who lives **in your computer**.
 

@@ -436,6 +436,7 @@ class train:
             "lr": []
         }
         self.iter_num = 0
+        self.best_loss = 0
 
     def from_pretrained(self, checkpoint: dict):
         """
@@ -444,7 +445,6 @@ class train:
 
         # make loading pretrained models backwards compatible with previously trained models
         metrics = [checkpoint[i] for i in ["metrics", "losses"] if i in checkpoint.keys()]
-        print(metrics)
         self.metrics = {
             "train": [],
             "eval": [],
@@ -459,6 +459,7 @@ class train:
         # load the state dict and current iteration number of the model
         state_dict = checkpoint["model"]
         self.iter_num = checkpoint["iter_num"]
+        self.best_loss = checkpoint["best_loss"] if "best_loss" in checkpoint.keys() else 0
 
         self.hyperparams = dict(dropout=self.config["dropout"])
         # read off the created config params, so we can store them into checkpoint correctly
@@ -606,7 +607,7 @@ class train:
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
         return self.config["min_lr"] + coeff * (self.config["learning_rate"] - self.config["min_lr"])
 
-    def train(self, max_iters=1000, eval_interval=100, log_interval=100, eval_iters=100, early_log_interval=10):
+    def train(self, max_iters=1000, eval_interval=100, log_interval=100, eval_iters=100, early_log_interval=10, patience=10):
         # report number of parameters
         print(f"{Fore.WHITE}{Style.BRIGHT}{self.model.get_num_params()/1e6}M", "parameters")
 
@@ -626,6 +627,8 @@ class train:
         t0 = time.time()
         local_iter_num = 0 # number of iterations in the lifetime of this process
         running_mfu = -1.0
+        interval_without_improvement = 0
+
         while True:
             try:
                 # determine and set the learning rate for this iteration
@@ -656,9 +659,22 @@ class train:
 
                     self.metrics["train"].append(losses["train"])
                     self.metrics["val"].append(losses["val"])
-                    self.metrics["lr"].append(lr)
 
+                    # check for early stopping
+                    if losses["val"] < self.best_loss:
+                        self.best_loss = losses["val"]
+                        interval_without_improvement = 0  # reset the count
+
+                    elif interval_without_improvement + 1 >= patience:
+                        print("Early stopping due to no improvement in validation loss.")
+                        break
+
+                    else:
+                        interval_without_improvement += 1
+
+                # save checkpoint
                 if self.config["checkpoints"] and self.iter_num % self.config["checkpoints"]["interval"] == 0:
+                    print(f"saved checkpoint at step {Fore.WHITE}{Style.BRIGHT}{self.iter_num}")
                     if not os.path.isdir(self.config["checkpoints"]["path"]):
                         os.mkdir(self.config["checkpoints"]["path"])
 
@@ -698,7 +714,6 @@ class train:
                     # get loss as float. note: this is a CPU-GPU sync point
                     # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
                     lossf = loss.item() * self.config["gradient_accumulation_steps"]
-                    self.metrics["eval"].append(lossf)
 
                     if local_iter_num >= 5: # let the training loop settle a bit
                         mfu = self.model.estimate_mfu(self.config["batch_size"] * self.config["gradient_accumulation_steps"], dt)
@@ -715,6 +730,8 @@ class train:
                         f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(dt)}"
                     )
                     self.metrics["mfu"].append(running_mfu)
+                    self.metrics["eval"].append(lossf)
+                    self.metrics["lr"].append(lr)
 
                 self.iter_num += 1
                 local_iter_num += 1
@@ -737,7 +754,8 @@ class train:
             "hyperparams": self.hyperparams,
             "iter_num": self.iter_num,
             "device": self.device,
-            "metrics": self.metrics
+            "metrics": self.metrics,
+            "best_loss": self.best_loss
         }
 
     def plot(self, path):
