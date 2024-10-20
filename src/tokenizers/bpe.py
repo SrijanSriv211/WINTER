@@ -1,8 +1,7 @@
 from ..shared.utils import calc_total_time
 from colorama import init, Fore, Style
 from collections import Counter
-import unicodedata, time
-import regex as re
+import unicodedata, pickle, regex, time
 
 init(autoreset=True)
 
@@ -12,12 +11,14 @@ init(autoreset=True)
 GPT4_SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
 
 # a few helper functions useful for both RegexTokenizer
-def get_stats(ids, most_common):
-	return dict(Counter([
+def get_stats(ids, most_common=-1):
+	stats = Counter([
 		pair
 		for chunk_ids in ids
 		for pair in zip(chunk_ids, chunk_ids[1:])
-	]).most_common(most_common))
+	])
+
+	return dict(stats.most_common(most_common) if most_common > 0 else stats)
 
 def merge(ids, merges: dict):
 	"""
@@ -65,40 +66,48 @@ def render_token(t: bytes) -> str:
 class RegexTokenizer:
 	def __init__(self, pattern=None):
 		"""
-		- pattern optional string to override the default (GPT-4 split pattern)
+		- pattern: optional string to override the default (GPT-4 split pattern)
 		- special_tokens: int dictionary of special tokens
 		  example: {'<|endoftext|>': 100257}
 		"""
-
 		self.pattern = GPT4_SPLIT_PATTERN if pattern is None else pattern
-		self.compiled_pattern = re.compile(self.pattern)
-		self.resume_training = False
+		self.compiled_pattern = regex.compile(self.pattern)
 
 		self.special_tokens = {}
 		self.inverse_special_tokens = {}
 
 		self.merges = {} # (int, int) -> int
-		self.merge_offset = 256
-
-	def from_scratch(self):
 		self.vocab = {idx: bytes([idx]) for idx in range(256)} # idx -> bytes
 
-	def from_pretrained(self, checkpoint):
-		self.load(checkpoint)
-		self.merge_offset = len(self.vocab) - len(self.special_tokens)
-		self.special_tokens = {}
-		self.resume_training = True
+	def train(self, text, vocab_size, batch_size=10, batch_decay=0, decay_interval=100, is_file=False):
+		"""
+		- text: text dataset to train the tokenizer on
+		- is_file: if the given text data is raw strings or a text file to load
+		- vocab_size: max number of merges to be made - 256 bytes
+		- batch_size: how many merges to be made before replacing all the made merges in encoded sequence
+		  lower value = better merge quality; higher value = poorer merge quality
+		  `batch_size >= 1`
+		- batch_decay: decay the batch size by given value
+		  `batch_decay >= 0`
+		- decay_interval: decay the batch size after every `n` steps
+		"""
+		assert vocab_size >= 256
+		assert 1 <= batch_size <= vocab_size
+		assert 0 <= batch_decay <= batch_size - 1
+		assert 1 <= decay_interval <= vocab_size
 
-	def train(self, text, vocab_size):
-		assert vocab_size >= self.merge_offset
+		if is_file:
+			with open(text, "r", encoding="utf-8") as f:
+				text = f.read()
 
-		text_chunks: list[str] = re.findall(self.compiled_pattern, text)
 		print(
 			"encoding text with", f"{Fore.WHITE}{Style.BRIGHT}{len(text)/1e6}M", "characters and",
-			f"{Fore.WHITE}{Style.BRIGHT}{len(set(text))}", "unique characters",
-			f"{Fore.WHITE}{Style.BRIGHT}{len(set(text_chunks))}", "unique words"
+			f"{Fore.WHITE}{Style.BRIGHT}{len(set(text))}", "unique characters"
 		)
-		ids = [self.encode(ch) if self.resume_training else list(ch.encode("utf-8")) for ch in text_chunks]
+		text_chunks: list[str] = regex.findall(self.compiled_pattern, text)
+		del text
+		print(f"encoding text chunks... {Fore.BLACK}{Style.BRIGHT}(takes a ~minute)")
+		ids = [list(ch.encode("utf-8")) for ch in text_chunks]
 		del text_chunks
 
 		print("training on vocab size", f"{Fore.WHITE}{Style.BRIGHT}{vocab_size}")
@@ -107,23 +116,23 @@ class RegexTokenizer:
 
 		# count the number of times every consecutive pair appears
 		i = 0
-		n_merges = vocab_size - self.merge_offset
+		n_merges = vocab_size - 256
 		while i < n_merges:
 			# passing in stats will update it in place, adding up counts
-			stats = dict([
-				(pair, occurrences)
-				for pair, occurrences in get_stats(ids, most_common=1000).items()
-				if self.vocab[pair[0]] + self.vocab[pair[1]] not in self.vocab.values()
-			][:10])
+			stats = get_stats(ids, most_common=batch_size)
 
 			# get the pairs with the highest counts
 			for pair, occurrences in stats.items():
 				# mint a new token: assign it the next available id
-				idx = self.merge_offset + i
+				idx = 256 + i
 
 				# save the merge
 				self.merges[pair] = idx
 				self.vocab[idx] = self.vocab[pair[0]] + self.vocab[pair[1]]
+
+				# decay batch size
+				if i + 1 % decay_interval == 0 and batch_size > 1:
+					batch_size -= batch_decay
 
 				# verbose
 				print(
@@ -140,6 +149,8 @@ class RegexTokenizer:
 				i += 1
 				if i >= n_merges:
 					break
+			if i >= n_merges:
+				break
 
 			# replace all occurrences of pair in ids with idx
 			ids = [merge(chunk_ids, self.merges) for chunk_ids in ids]
@@ -177,7 +188,7 @@ class RegexTokenizer:
 
 		# find the pair with the lowest merge index
 		while len(ids) >= 2:
-			stats = get_stats([ids], most_common=10)
+			stats = get_stats([ids], most_common=-1)
 			pair = min(stats, key=lambda p: self.merges.get(p, float("inf")))
 
 			# subtle: if there are no more merges available, the key will
@@ -190,13 +201,12 @@ class RegexTokenizer:
 
 			# otherwise let's merge the best pair (lowest merge index)
 			ids = merge(ids, self.merges)
-
 		return ids
 
 	def encode_ordinary(self, text):
 		"""Encoding that ignores any special tokens."""
 		# split text into chunks of text by categories defined in regex pattern
-		text_chunks = re.findall(self.compiled_pattern, text)
+		text_chunks = regex.findall(self.compiled_pattern, text)
 
 		# all chunks of text are encoded separately, then results are joined
 		ids = []
@@ -243,10 +253,10 @@ class RegexTokenizer:
 		# otherwise, we have to be careful with potential special tokens in text
 		# we handle special tokens by splitting the text
 		# based on the occurrence of any exact match with any of the special tokens
-		# we can use re.split for this. note that surrounding the pattern with ()
+		# we can use regex.split for this. note that surrounding the pattern with ()
 		# makes it into a capturing group, so the special tokens will be included
-		special_pattern = "(" + "|".join(re.escape(k) for k in special) + ")"
-		special_chunks = re.split(special_pattern, text)
+		special_pattern = "(" + "|".join(regex.escape(k) for k in special) + ")"
+		special_chunks = regex.split(special_pattern, text)
 
 		# now all the special characters are separated from the rest of the text
 		# all chunks of text are encoded separately, then results are joined
@@ -262,7 +272,7 @@ class RegexTokenizer:
 
 		return ids
 
-	def save(self, file_prefix):
+	def save(self, file_prefix, save_vocab_file=True):
 		"""
 		Saves two files: file_prefix.vocab and file_prefix.model
 		This is inspired (but not equivalent to!) sentencepiece's model saving:
@@ -270,25 +280,21 @@ class RegexTokenizer:
 		- vocab file is just a pretty printed version for human inspection only
 		"""
 		# write the model: to be used in load() later
-		model_file = file_prefix + ".model"
-		with open(model_file, 'w') as f:
-			# write the version, pattern and merges, that's all that's needed
-			f.write(f"{self.pattern}\n")
+		with open(file_prefix + ".model", "wb") as f:
+			pickle.dump({
+				"pattern": self.pattern,
+				"special": self.special_tokens,
+				"merges": self.merges,
+				"vocab": self.vocab
+			}, f)
 
-			# write the special tokens, first the number of them, then each one
-			f.write(f"{len(self.special_tokens)}\n")
-			for special, idx in self.special_tokens.items():
-				f.write(f"{special} {idx}\n")
-
-			# the merges dict
-			for (idx1, idx2), idx3 in self.merges.items():
-				f.write(f"{idx1} {idx2} {idx3}\n")
+		if not save_vocab_file:
+			return
 
 		# write the vocab: for the human to look at
-		vocab_file = file_prefix + ".vocab"
 		inverted_merges = {idx: pair for pair, idx in self.merges.items()}
 
-		with open(vocab_file, "w", encoding="utf-8") as f:
+		with open(file_prefix + ".vocab", "w", encoding="utf-8") as f:
 			for idx, token in self.vocab.items():
 				# note: many tokens may be partial utf-8 sequences
 				# and cannot be decoded into valid strings. Here we're using
@@ -313,29 +319,10 @@ class RegexTokenizer:
 		assert checkpoint.endswith(".model")
 
 		# read the model file
-		self.merges = {}
-		self.special_tokens = {}
+		with open(checkpoint, "rb") as f:
+			model = pickle.load(f)
 
-		with open(checkpoint, "r", encoding="utf-8") as f:
-			# read the pattern
-			self.pattern = f.readline().strip()
-
-			# read the special tokens
-			num_special = int(f.readline().strip())
-			for _ in range(num_special):
-				special, special_idx = f.readline().strip().split()
-				self.special_tokens[special] = int(special_idx)
-
-			# read the merges
-			for line in f:
-				idx1, idx2, idx3 = map(int, line.split())
-				self.merges[(idx1, idx2)] = idx3
-
-		# vocab is simply and deterministically derived from merges
-		self.vocab = {idx: bytes([idx]) for idx in range(256)}
-
-		for (p0, p1), idx in self.merges.items():
-			self.vocab[idx] = self.vocab[p0] + self.vocab[p1]
-
-		for special, idx in self.special_tokens.items():
-			self.vocab[idx] = special.encode("utf-8")
+		self.pattern = model["pattern"]
+		self.special_tokens = model["special"]
+		self.merges = model["merges"]
+		self.vocab = model["vocab"]
