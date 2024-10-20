@@ -54,7 +54,7 @@ class RegexTokenizer:
 		self.inverse_special_tokens = {}
 		self.vocab = {idx: bytes([idx]) for idx in range(256)} # idx -> bytes
 
-	def train(self, text, vocab_size, batch_size=10, batch_decay=0, decay_interval=100, is_file=False):
+	def train(self, text, vocab_size, batch_size=10, increment_interval=100, is_file=False):
 		"""
 		- text: text dataset to train the tokenizer on
 		- is_file: if the given text data is raw strings or a text file to load
@@ -62,14 +62,10 @@ class RegexTokenizer:
 		- batch_size: how many merges to be made before replacing all the made merges in encoded sequence
 		  lower value = better merge quality; higher value = poorer merge quality
 		  `batch_size >= 1`
-		- batch_decay: decay the batch size by given value
-		  `batch_decay >= 0`
-		- decay_interval: decay the batch size after every `n` steps
 		"""
 		assert vocab_size >= 256
 		assert 1 <= batch_size <= vocab_size
-		assert 0 <= batch_decay <= batch_size - 1
-		assert 1 <= decay_interval <= vocab_size
+		assert 1 <= increment_interval <= vocab_size - 256
 
 		if is_file:
 			with open(text, "r", encoding="utf-8") as f:
@@ -93,11 +89,12 @@ class RegexTokenizer:
 
 		# count the number of times every consecutive pair appears
 		i = 0
+		most_common = 1
 		n_merges = vocab_size - 256
 		while i < n_merges:
 			# passing in stats will update it in place, adding up counts
 			# get the pairs with the highest counts
-			for pair, occurrences in get_stats(ids, most_common=batch_size).items():
+			for pair, occurrences in get_stats(ids, most_common=most_common).items():
 				# mint a new token: assign it the next available id
 				idx = 256 + i
 
@@ -106,8 +103,8 @@ class RegexTokenizer:
 				self.vocab[idx] = self.vocab[pair[0]] + self.vocab[pair[1]]
 
 				# decay batch size
-				if i + 1 % decay_interval == 0 and batch_size > 1:
-					batch_size -= batch_decay
+				if i + 1 % increment_interval == 0 and most_common <= n_merges:
+					most_common += batch_size
 
 				# verbose
 				print(
