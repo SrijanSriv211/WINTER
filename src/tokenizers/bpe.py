@@ -40,29 +40,6 @@ def merge(ids, merges: dict):
 
 	return new_ids
 
-# first two helper functions...
-# we don't want to print control characters
-# which distort the output (e.g. \n or much worse)
-# https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python/19016117#19016117
-# http://www.unicode.org/reports/tr44/#GC_Values_Table
-def replace_control_characters(s: str) -> str:
-	chars = []
-
-	for ch in s:
-		if unicodedata.category(ch)[0] != "C":
-			chars.append(ch) # this character is ok
-
-		else:
-			chars.append(f"\\u{ord(ch):04x}") # escape
-
-	return "".join(chars)
-
-# pretty print a token, escaping control characters
-def render_token(t: bytes) -> str:
-	s = t.decode('utf-8', errors='replace')
-	s = replace_control_characters(s)
-	return s
-
 class RegexTokenizer:
 	def __init__(self, pattern=None):
 		"""
@@ -75,8 +52,6 @@ class RegexTokenizer:
 
 		self.special_tokens = {}
 		self.inverse_special_tokens = {}
-
-		self.merges = {} # (int, int) -> int
 		self.vocab = {idx: bytes([idx]) for idx in range(256)} # idx -> bytes
 
 	def train(self, text, vocab_size, batch_size=10, batch_decay=0, decay_interval=100, is_file=False):
@@ -114,20 +89,20 @@ class RegexTokenizer:
 		start_time = time.time()
 		last_print_time = time.time()
 
+		merges = {}
+
 		# count the number of times every consecutive pair appears
 		i = 0
 		n_merges = vocab_size - 256
 		while i < n_merges:
 			# passing in stats will update it in place, adding up counts
-			stats = get_stats(ids, most_common=batch_size)
-
 			# get the pairs with the highest counts
-			for pair, occurrences in stats.items():
+			for pair, occurrences in get_stats(ids, most_common=batch_size).items():
 				# mint a new token: assign it the next available id
 				idx = 256 + i
 
 				# save the merge
-				self.merges[pair] = idx
+				merges[pair] = idx
 				self.vocab[idx] = self.vocab[pair[0]] + self.vocab[pair[1]]
 
 				# decay batch size
@@ -153,7 +128,7 @@ class RegexTokenizer:
 				break
 
 			# replace all occurrences of pair in ids with idx
-			ids = [merge(chunk_ids, self.merges) for chunk_ids in ids]
+			ids = [merge(chunk_ids, merges) for chunk_ids in ids]
 
 		# print the total time taken to do all the merges
 		print("time taken: ", f"{Fore.WHITE}{Style.BRIGHT}{calc_total_time(time.time()-start_time)}")
@@ -166,41 +141,32 @@ class RegexTokenizer:
 
 	# given ids (list of integers), return Python string
 	def decode(self, ids):
-		part_bytes = []
-		for idx in ids:
-			if idx in self.vocab:
-				part_bytes.append(self.vocab[idx])
-
-			elif idx in self.inverse_special_tokens:
-				part_bytes.append(self.inverse_special_tokens[idx].encode("utf-8"))
-
-			else:
-				raise ValueError(f"invalid token id: {idx}")
-
-		text_bytes = b"".join(part_bytes)
-		text = text_bytes.decode("utf-8", errors="replace")
-		return text
+		return "".join([self.vocab[i].decode("utf-8", "replace") for i in ids])
 
 	# return the token ids
 	# let's begin. first, convert all bytes to integers in range 0..255
-	def _encode_chunk(self, text_bytes):
+	def _encode_chunk(self, text_bytes, inverse_vocab):
 		ids = list(text_bytes)
+		if len(ids) < 2:
+			return ids
 
-		# find the pair with the lowest merge index
-		while len(ids) >= 2:
-			stats = get_stats([ids], most_common=-1)
-			pair = min(stats, key=lambda p: self.merges.get(p, float("inf")))
+		first, last = 0, 2
 
-			# subtle: if there are no more merges available, the key will
-			# result in an inf for every single pair, and the min will be
-			# just the first pair in the list, arbitrarily
-			# we can detect this terminating case by a membership check
+		while first <= len(ids):
+			if len(ids[first:last]) < 2:
+				break
 
-			if pair not in self.merges:
-				break # nothing else can be merged anymore
+			i0 = ids[first:last][0]
+			i1 = ids[first:last][1]
 
-			# otherwise let's merge the best pair (lowest merge index)
-			ids = merge(ids, self.merges)
+			if self.vocab[i0] + self.vocab[i1] in inverse_vocab.keys():
+				ids[first:last] = [inverse_vocab[self.vocab[i0] + self.vocab[i1]]]
+				first, last = 0, 2
+
+			else:
+				first += 1
+				last += 1
+
 		return ids
 
 	def encode_ordinary(self, text):
@@ -211,9 +177,10 @@ class RegexTokenizer:
 		# all chunks of text are encoded separately, then results are joined
 		ids = []
 
+		inverse_sorted_vocab = {v: k for k, v in self.vocab.items()}
 		for chunk in text_chunks:
 			chunk_bytes = chunk.encode("utf-8") # raw bytes
-			chunk_ids = self._encode_chunk(chunk_bytes)
+			chunk_ids = self._encode_chunk(chunk_bytes, inverse_sorted_vocab)
 			ids.extend(chunk_ids)
 
 		return ids
@@ -272,48 +239,18 @@ class RegexTokenizer:
 
 		return ids
 
-	def save(self, file_prefix, save_vocab_file=True):
+	def save(self, file_prefix):
 		"""
-		Saves two files: file_prefix.vocab and file_prefix.model
-		This is inspired (but not equivalent to!) sentencepiece's model saving:
+		Saves two files: file_prefix.model
 		- model file is the critical one, intended for load()
-		- vocab file is just a pretty printed version for human inspection only
 		"""
 		# write the model: to be used in load() later
 		with open(file_prefix + ".model", "wb") as f:
 			pickle.dump({
 				"pattern": self.pattern,
 				"special": self.special_tokens,
-				"merges": self.merges,
 				"vocab": self.vocab
 			}, f)
-
-		if not save_vocab_file:
-			return
-
-		# write the vocab: for the human to look at
-		inverted_merges = {idx: pair for pair, idx in self.merges.items()}
-
-		with open(file_prefix + ".vocab", "w", encoding="utf-8") as f:
-			for idx, token in self.vocab.items():
-				# note: many tokens may be partial utf-8 sequences
-				# and cannot be decoded into valid strings. Here we're using
-				# errors='replace' to replace them with the replacement char �.
-				# this also means that we couldn't possibly use .vocab in load()
-				# because decoding in this way is a lossy operation!
-				s = render_token(token)
-				# find the children of this token, if any
-				if idx in inverted_merges:
-					# if this token has children, render it nicely as a merge
-					idx0, idx1 = inverted_merges[idx]
-					s0 = render_token(self.vocab[idx0])
-					s1 = render_token(self.vocab[idx1])
-					f.write(f"[{s0}][{s1}] -> [{s}] {idx}\n")
-
-				else:
-					# otherwise this is leaf token, just print it
-					# (this should just be the first 256 tokens, the bytes)
-					f.write(f"[{s}] {idx}\n")
 
 	def load(self, checkpoint: str):
 		assert checkpoint.endswith(".model")
@@ -324,5 +261,4 @@ class RegexTokenizer:
 
 		self.pattern = model["pattern"]
 		self.special_tokens = model["special"]
-		self.merges = model["merges"]
 		self.vocab = model["vocab"]
