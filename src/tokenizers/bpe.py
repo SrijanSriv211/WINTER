@@ -54,18 +54,15 @@ class RegexTokenizer:
 		self.inverse_special_tokens = {}
 		self.vocab = {idx: bytes([idx]) for idx in range(256)} # idx -> bytes
 
-	def train(self, text, vocab_size, batch_size=10, increment_interval=100, is_file=False):
+	def train(self, text, vocab_size, batch_size=10, is_file=False):
 		"""
 		- text: text dataset to train the tokenizer on
 		- is_file: if the given text data is raw strings or a text file to load
 		- vocab_size: max number of merges to be made - 256 bytes
 		- batch_size: how many merges to be made before replacing all the made merges in encoded sequence
-		  lower value = better merge quality; higher value = poorer merge quality
-		  `batch_size >= 1`
 		"""
 		assert vocab_size >= 256
 		assert 1 <= batch_size <= vocab_size
-		assert 1 <= increment_interval <= vocab_size - 256
 
 		if is_file:
 			with open(text, "r", encoding="utf-8") as f:
@@ -89,22 +86,17 @@ class RegexTokenizer:
 
 		# count the number of times every consecutive pair appears
 		i = 0
-		most_common = 1
 		n_merges = vocab_size - 256
 		while i < n_merges:
 			# passing in stats will update it in place, adding up counts
 			# get the pairs with the highest counts
-			for pair, occurrences in get_stats(ids, most_common=most_common).items():
+			for pair, occurrences in get_stats(ids, most_common=batch_size).items():
 				# mint a new token: assign it the next available id
 				idx = 256 + i
 
 				# save the merge
 				merges[pair] = idx
 				self.vocab[idx] = self.vocab[pair[0]] + self.vocab[pair[1]]
-
-				# decay batch size
-				if i + 1 % increment_interval == 0 and most_common <= n_merges:
-					most_common += batch_size
 
 				# verbose
 				print(
@@ -138,7 +130,19 @@ class RegexTokenizer:
 
 	# given ids (list of integers), return Python string
 	def decode(self, ids):
-		return "".join([self.vocab[i].decode("utf-8", "replace") for i in ids])
+		part_bytes = []
+		for idx in ids:
+			if idx in self.vocab:
+				part_bytes.append(self.vocab[idx])
+
+			elif idx in self.inverse_special_tokens:
+				part_bytes.append(self.inverse_special_tokens[idx].encode("utf-8"))
+
+			else:
+				raise ValueError(f"invalid token id: {idx}")
+
+		text_bytes = b"".join(part_bytes)
+		return text_bytes.decode("utf-8", errors="replace")
 
 	# return the token ids
 	# let's begin. first, convert all bytes to integers in range 0..255
@@ -258,4 +262,5 @@ class RegexTokenizer:
 
 		self.pattern = model["pattern"]
 		self.special_tokens = model["special"]
+		self.inverse_special_tokens = {v: k for k, v in self.special_tokens.items()}
 		self.vocab = model["vocab"]
