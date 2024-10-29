@@ -3,8 +3,8 @@ from colorama import Style, Fore, init
 from torch.nn import functional as F
 from contextlib import nullcontext
 from dataclasses import dataclass
+import inspect, pickle, random, time, math, os
 import torch.nn as nn, torch.amp, torch
-import inspect, pickle, time, math, os
 import matplotlib.pyplot as plt
 
 init(autoreset=True)
@@ -402,7 +402,9 @@ class train:
         self.config = config
         self.device = ("cuda" if torch.cuda.is_available() else "cpu") if self.config["device"] == "auto" else self.config["device"]
 
+        # init seed
         torch.manual_seed(self.config["seed"]) if self.config["seed"] != "auto" else None
+        random.seed(self.config["seed"]) if self.config["seed"] != "auto" else None
 
         # "float32", "bfloat16", or "float16", the latter will auto implement a GradScaler
         dtype = "bfloat16" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "float16"
@@ -534,21 +536,34 @@ class train:
             f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if not (0 < data_division < 1) else ""
         )
 
-    def get_data(self, train, val):
+    def get_data(self, train, val, is_file=True):
         """
         1. `train`: Path to training data (`train.bin`)
         2. `val`: Path to validation data (`val.bin`)
         """
 
+        self.is_dataset_a_file = is_file
         self.train_data = train
         self.val_data = val
 
-        # Try to load and check all the data
-        with open(self.train_data, "rb") as f:
-            train_data = len(pickle.load(f))
+        train_data, val_data = 0, 0
+        if is_file:
+            # Try to load and check all the data
+            with open(self.train_data, "rb") as f:
+                train_data = len(pickle.load(f))
 
-        with open(self.val_data, "rb") as f:
-            val_data = len(pickle.load(f))
+            with open(self.val_data, "rb") as f:
+                val_data = len(pickle.load(f))
+
+        else:
+            for i in os.listdir(self.train_data):
+                # Try to load and check all the data
+                with open(f"{self.train_data}\\{i}", "rb") as f:
+                    train_data += len(pickle.load(f))
+
+            for i in os.listdir(self.val_data):
+                with open(f"{self.val_data}\\{i}", "rb") as f:
+                    val_data += len(pickle.load(f))
 
         data = train_data + val_data
 
@@ -560,12 +575,19 @@ class train:
             f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if not (0 < (train_data/data) < 1) else ""
         )
 
+    def _load_data(self, path):
+        files = os.listdir(path)
+        random.shuffle(files)
+
+        with open(f"{path}\\{files[0]}" if not self.is_dataset_a_file else path, "rb") as f:
+            return pickle.load(f)
+
     # data loading
     # generate a small batch of data of inputs x and targets y
     def get_batch(self, split):
         # We reload data every batch to avoid a memory leak
-        with open(self.train_data if split == "train" else self.val_data, "rb") as f:
-            data = pickle.load(f)
+        path = self.train_data if split == "train" else self.val_data
+        data = self._load_data(path)
 
         ix = torch.randint(len(data) - self.config["block_size"], (self.config["batch_size"],))
         x = torch.stack([data[i:i+self.config["block_size"]] for i in ix])
