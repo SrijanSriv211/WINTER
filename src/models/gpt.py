@@ -727,6 +727,14 @@ class train:
                 # flush the gradients as soon as we can, no need for this memory anymore
                 self.optimizer.zero_grad(set_to_none=True)
 
+                print(
+                    f"{Fore.WHITE}{Style.BRIGHT}iter",
+                    f"{Fore.BLACK}{Style.BRIGHT}[{self.iter_num}/{max_iters}]"
+                    f"{Fore.RESET}{Style.RESET_ALL}:",
+                    f"loss {Fore.WHITE}{Style.BRIGHT}{(loss.item() * self.config["gradient_accumulation_steps"]):.4f}",
+                    end="\r"
+                )
+
                 # timing and logging
                 if self.iter_num % log_interval == 0:
                     t1 = time.time()
