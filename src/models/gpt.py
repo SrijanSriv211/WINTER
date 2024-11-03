@@ -85,13 +85,12 @@ class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=config.bias)
-        self.gelu    = nn.GELU()
         self.c_proj  = nn.Linear(4 * config.n_embd, config.n_embd, bias=config.bias)
         self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
         x = self.c_fc(x)
-        x = self.gelu(x)
+        x = F.relu(x).square() # https://arxiv.org/abs/2109.08668v2; ~1-2% better than GELU; suggested by @SKYLINEZ007 and @Grad62304977
         x = self.c_proj(x)
         x = self.dropout(x)
         return x
@@ -326,7 +325,7 @@ class sample:
             self.model = torch.compile(self.model, backend="aot_eager") # requires PyTorch 2.0
 
     # use the model for generation or other tasks
-    def generate(self, encoded_text=None, length=100, temperature=1.0, top_k=None):
+    def generate(self, encoded_text=None, length=100, temperature=0.7, top_k=50):
         """
         `max_new_tokens`: number of tokens generated in each sample
         `temperature`: 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
@@ -576,8 +575,9 @@ class train:
         )
 
     def _load_data(self, path):
-        files = os.listdir(path)
-        random.shuffle(files)
+        if not self.is_dataset_a_file:
+            files = os.listdir(path)
+            random.shuffle(files)
 
         with open(f"{path}\\{files[0]}" if not self.is_dataset_a_file else path, "rb") as f:
             return pickle.load(f)
@@ -611,7 +611,7 @@ class train:
             out[split] = losses.mean()
         self.model.train()
         return out
-    
+
     # learning rate decay scheduler (cosine with warmup)
     def get_lr(self, it):
         # 1) linear warmup for warmup_iters steps
@@ -629,7 +629,7 @@ class train:
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
         return self.config["min_lr"] + coeff * (self.config["learning_rate"] - self.config["min_lr"])
 
-    def train(self, max_iters=1000, eval_interval=100, log_interval=100, eval_iters=100, early_log_interval=10, patience=10):
+    def train(self, max_iters=1000, eval_interval=100, log_interval=100, eval_iters=100, patience=10):
         # report number of parameters
         print(f"{Fore.WHITE}{Style.BRIGHT}{self.model.get_num_params()/1e6}M", "parameters")
 
@@ -696,11 +696,11 @@ class train:
 
                 # save checkpoint
                 if self.config["checkpoints"] and self.iter_num % self.config["checkpoints"]["interval"] == 0:
-                    print(f"saved checkpoint at step {Fore.WHITE}{Style.BRIGHT}{self.iter_num}")
                     if not os.path.isdir(self.config["checkpoints"]["path"]):
                         os.mkdir(self.config["checkpoints"]["path"])
 
                     if self.iter_num > 0:
+                        print(f"saved checkpoint at step {Fore.WHITE}{Style.BRIGHT}{self.iter_num}")
                         torch.save(self.get_trained_model(), f"{self.config["checkpoints"]["path"]}\\{self.config["checkpoints"]["name"]}_step{self.iter_num}.pth")
 
                 # forward backward update, with optional gradient accumulation to simulate larger batch size
@@ -728,7 +728,7 @@ class train:
                 self.optimizer.zero_grad(set_to_none=True)
 
                 # timing and logging
-                if (self.iter_num % log_interval == 0) or (self.iter_num <= log_interval and self.iter_num % early_log_interval == 0):
+                if self.iter_num % log_interval == 0:
                     t1 = time.time()
                     dt = t1 - t0
                     t0 = t1
@@ -780,37 +780,28 @@ class train:
             "best_loss": self.best_loss
         }
 
-    def plot(self, path):
-        self._graph("train-val loss", [(self.metrics["train"], "train loss"), (self.metrics["val"], "val loss")], path + "-train-val.png")
-        self._graph("eval loss", [(self.metrics["eval"], "eval loss")], path + "-eval.png")
-        self._graph("mfu", [(self.metrics["mfu"], "mfu")], path + "-mfu.png")
-        self._graph("lr", [(self.metrics["lr"], "lr")], path + "-lr.png")
+    # def plot(self, path):
+    #     self._plot("train-val loss", [(self.metrics["train"], "train loss"), (self.metrics["val"], "val loss")], path + "-train-val.png")
+    #     self._plot("eval loss", [(self.metrics["eval"], "eval loss")], path + "-eval.png")
+    #     self._plot("mfu", [(self.metrics["mfu"], "mfu")], path + "-mfu.png")
+    #     self._plot("lr", [(self.metrics["lr"], "lr")], path + "-lr.png")
 
-        self._graph("metrics", [
-            (self.metrics["train"], "train loss"),
-            (self.metrics["eval"], "eval loss"),
-            (self.metrics["val"], "val loss"),
-            (self.metrics["mfu"], "mfu"),
-            (self.metrics["lr"], "lr")
-        ], path + ".png")
+    # def _plot(self, title, plot_data, save_path):
+    #     with plt.style.context("seaborn-v0_8-dark"):
+    #         for param in ["figure.facecolor", "axes.facecolor", "savefig.facecolor"]:
+    #             plt.rcParams[param] = "#030407"
 
-    def _graph(self, title, plot_data, save_path):
-        plt.style.use("seaborn-v0_8-dark")
+    #         for param in ["text.color", "axes.labelcolor", "xtick.color", "ytick.color"]:
+    #             plt.rcParams[param] = "0.9"
 
-        for param in ["figure.facecolor", "axes.facecolor", "savefig.facecolor"]:
-            plt.rcParams[param] = "#030407"
+    #         plt.figure(figsize=(18, 8))
 
-        for param in ["text.color", "axes.labelcolor", "xtick.color", "ytick.color"]:
-            plt.rcParams[param] = "0.9"
+    #         for losses, label in plot_data:
+    #             plt.plot(losses, label=label)
 
-        plt.figure(figsize=(18, 8))
-
-        for losses, label in plot_data:
-            plt.plot(losses, label=label)
-
-        plt.xlabel("iteration", fontsize=12)
-        plt.ylabel("value", fontsize=12)
-        plt.legend(fontsize=12)
-        plt.title(title, fontsize=14)
-        plt.savefig(save_path, bbox_inches="tight")
-        plt.close()
+    #         plt.xlabel("iteration", fontsize=12)
+    #         plt.ylabel("value", fontsize=12)
+    #         plt.legend(fontsize=12)
+    #         plt.title(title, fontsize=14)
+    #         plt.savefig(save_path, bbox_inches="tight")
+    #         plt.close()
