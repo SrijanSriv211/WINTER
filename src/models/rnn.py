@@ -156,18 +156,10 @@ class train:
 
         torch.manual_seed(self.config["seed"]) if self.config["seed"] != "auto" else None
 
-        # a dict for keep track of all the losses to be plotted.
-        self.losses = {
-            "train": [],
-            "val": []
-        }
-
         # print the device
         print("Training on", f"{Fore.YELLOW}{Style.BRIGHT}{self.device}", f"{Fore.WHITE}{Style.BRIGHT}({torch.initial_seed()})")
 
     def from_scratch(self):
-        self.iter_num = 1
-
         self.hyperparams = dict(dropout=self.config["dropout"])
         # read off the created config params, so we can store them into checkpoint correctly
         for k in ["n_layer", "n_head", "n_embd", "output_size", "bias", "input_size"]:
@@ -177,6 +169,15 @@ class train:
         # create an instance of RNN
         self.model = RNN(rnnconf)
         self.model.to(self.device)
+
+        # a dict for keep track of all the losses to be plotted.
+        self.metrics = {
+            "train": [],
+            "eval": [],
+            "val": []
+        }
+        self.iter_num = 0
+        self.best_loss = 0
 
     def prepare(self, encoded_data, data_division=1):
         """
@@ -228,7 +229,7 @@ class train:
         self.model.train()
         return out
 
-    def train(self, max_iters=1000, eval_interval=100, eval_iters=100):
+    def train(self, max_iters=1000, eval_interval=100, log_interval=100, eval_iters=100, patience=10):
         # report number of parameters
         n_params = sum(p.numel() for p in self.model.parameters())
         print(f"{Fore.WHITE}{Style.BRIGHT}{n_params/1e6}M", "parameters")
@@ -238,12 +239,19 @@ class train:
 
         # training loop
         start_time = time.time()
-        eval_time = time.time()
+        eval_t0 = time.time()
+        t0 = time.time()
+        interval_without_improvement = 0
+
         while True:
             try:
                 # evaluate the loss on train/val sets and write checkpoints
                 if self.iter_num % eval_interval == 0:
                     losses = self.estimate_loss(eval_iters)
+                    # timing and logging
+                    eval_t1 = time.time()
+                    eval_dt = eval_t1 - eval_t0
+                    eval_t0 = eval_t1
 
                     print(
                         f"{Fore.WHITE}{Style.BRIGHT}step",
@@ -252,13 +260,24 @@ class train:
                         f"train loss {Fore.WHITE}{Style.BRIGHT}{losses["train"]:.4f}"
                         f"{Fore.RESET}{Style.RESET_ALL},",
                         f"val loss {Fore.WHITE}{Style.BRIGHT}{losses["val"]:.4f}"
-                        f"{Fore.RESET}{Style.RESET_ALL},"
-                        f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(time.time() - eval_time)}"
+                        f"{Fore.RESET}{Style.RESET_ALL},",
+                        f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(eval_dt)}"
                     )
 
-                    self.losses["train"].append(losses["train"])
-                    self.losses["val"].append(losses["val"])
-                    eval_time = time.time()
+                    self.metrics["train"].append(losses["train"])
+                    self.metrics["val"].append(losses["val"])
+
+                    # check for early stopping
+                    if losses["val"] < self.best_loss:
+                        self.best_loss = losses["val"]
+                        interval_without_improvement = 0  # reset the count
+
+                    elif interval_without_improvement + 1 >= patience:
+                        print("Early stopping due to no improvement in validation loss.")
+                        break
+
+                    else:
+                        interval_without_improvement += 1
 
                 if self.config["checkpoints"] and self.iter_num % self.config["checkpoints"]["interval"] == 0:
                     if not os.path.isdir(self.config["checkpoints"]["path"]):
@@ -275,6 +294,26 @@ class train:
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 optimizer.step()
+
+                # timing and logging
+                if self.iter_num % log_interval == 0:
+                    t1 = time.time()
+                    dt = t1 - t0
+                    t0 = t1
+
+                    # get loss as float. note: this is a CPU-GPU sync point
+                    lossf = loss.item()
+
+                    print(
+                        f"{Fore.WHITE}{Style.BRIGHT}iter",
+                        f"{Fore.BLACK}{Style.BRIGHT}[{self.iter_num}/{max_iters}]"
+                        f"{Fore.RESET}{Style.RESET_ALL}:",
+                        f"loss {Fore.WHITE}{Style.BRIGHT}{lossf:.4f}"
+                        f"{Fore.RESET}{Style.RESET_ALL},",
+                        f"{Fore.RESET}{Style.RESET_ALL},",
+                        f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(dt)}"
+                    )
+                    self.metrics["eval"].append(lossf)
 
                 self.iter_num += 1
 
@@ -294,25 +333,38 @@ class train:
             "model": self.model.state_dict(),
             "hyperparams": self.hyperparams,
             "iter_num": self.iter_num,
-            "device": self.device
+            "device": self.device,
+            "metrics": self.metrics,
+            "best_loss": self.best_loss
         }
 
-    def plot(self, path):
-        plt.style.use("seaborn-v0_8-dark")
+    # def plot(self, path):
+    #     self._graph("train-val loss", [(self.metrics["train"], "train loss"), (self.metrics["val"], "val loss")], path + "-train-val.png")
+    #     self._graph("eval loss", [(self.metrics["eval"], "eval loss")], path + "-eval.png")
 
-        for param in ["figure.facecolor", "axes.facecolor", "savefig.facecolor"]:
-            plt.rcParams[param] = "#030407"
+    #     self._graph("metrics", [
+    #         (self.metrics["train"], "train loss"),
+    #         (self.metrics["eval"], "eval loss"),
+    #         (self.metrics["val"], "val loss"),
+    #     ], path + ".png")
 
-        for param in ["text.color", "axes.labelcolor", "xtick.color", "ytick.color"]:
-            plt.rcParams[param] = "0.9"
+    # def _graph(self, title, plot_data, save_path):
+    #     plt.style.use("seaborn-v0_8-dark")
 
-        plt.figure(figsize=(18, 8))
-        plt.plot(self.losses["train"], label="train loss")
-        plt.plot(self.losses["val"], label="val loss")
+    #     for param in ["figure.facecolor", "axes.facecolor", "savefig.facecolor"]:
+    #         plt.rcParams[param] = "#030407"
 
-        plt.xlabel("iteration", fontsize=12)
-        plt.ylabel("value", fontsize=12)
-        plt.legend(fontsize=12)
-        plt.title("train-val loss", fontsize=14)
-        plt.savefig(path, bbox_inches="tight")
-        plt.close()
+    #     for param in ["text.color", "axes.labelcolor", "xtick.color", "ytick.color"]:
+    #         plt.rcParams[param] = "0.9"
+
+    #     plt.figure(figsize=(18, 8))
+
+    #     for losses, label in plot_data:
+    #         plt.plot(losses, label=label)
+
+    #     plt.xlabel("iteration", fontsize=12)
+    #     plt.ylabel("value", fontsize=12)
+    #     plt.legend(fontsize=12)
+    #     plt.title(title, fontsize=14)
+    #     plt.savefig(save_path, bbox_inches="tight")
+    #     plt.close()
