@@ -71,7 +71,7 @@ def _load_data(path):
 # data loading
 # generate a small batch of data of inputs x and targets y
 def get_batch(split):
-	# We reload data every batch to avoid a memory leak
+	# we reload data every batch to avoid a memory leak
 	path = CONFIG["train_data"] if split == "train" else CONFIG["val_data"]
 	data = _load_data(path)
 
