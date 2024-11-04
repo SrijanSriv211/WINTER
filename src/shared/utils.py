@@ -1,4 +1,4 @@
-import time, sys, os
+import torch, pickle, time, sys, os
 
 # dprint -> delay print
 # ChatGPT like print effect.
@@ -40,3 +40,40 @@ def calc_total_time(seconds):
     t = list(filter(None, t))
 
     return ", ".join(t) if t else "0 seconds"
+
+def prepare_data(encoded_data, path="bin", data_division=1):
+	"""
+	Generate `train.bin` and `val.bin` from encoded data.
+
+	Use this only once when you don't have `train.bin` and `val.bin`
+
+	If you already have `train.bin` and `val.bin`, then use `get_data` function.
+
+	1. `encoded_data`: The encoded training text data.
+
+	For eg,
+	```python
+	encode(text, stoi=stoi)
+	```
+
+	2. `data_division`: The first `(data_division * 100)%` will be train, rest val
+	3. `path`: Path where `train.bin` and `val.bin` will be saved
+	"""
+
+	data = torch.tensor(encoded_data, dtype=torch.long)
+
+	# train and test splits
+	n = int(data_division * len(data)) # the first (data_division * 100)% will be train, rest val
+	train_data = data[:n]
+	val_data = data[n:] if 0 < data_division < 1 else data[:n]
+
+	# print the number of tokens
+	print(f"{(len(data)/1e6)}M", "total tokens")
+	print(f"{(len(train_data)/1e6)}M", "train tokens,", f"{(len(val_data)/1e6)}M", "test tokens")
+
+    # save the data
+	with open(f"{path}\\train.bin", "wb") as f:
+		pickle.dump(train_data, f)
+
+	with open(f"{path}\\val.bin", "wb") as f:
+		pickle.dump(val_data, f)
