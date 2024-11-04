@@ -1,3 +1,38 @@
+from src.tokenizers.bpe import RegexTokenizer
+from src.shared.utils import prepare_data
+import json
+
+enc = RegexTokenizer()
+enc.load("bin\\cl4k.model")
+
+with open("data\\clis\\clis.json", "r", encoding="utf-8") as f:
+    obj = json.load(f)
+
+classes = []
+xy = [] # x = pattern, y = tag
+
+for intent in obj["clis"]:
+    skill = intent["skill"]
+    patterns = intent["patterns"]
+
+    if patterns == [""]:
+        continue
+
+    classes.append(skill)
+
+    for pattern in patterns:
+        xy.append((pattern, skill))
+
+import torch
+data = [(torch.tensor(enc.encode(x, allowed_special="all")), torch.tensor(classes.index(y))) for x, y in xy]
+
+prepare_data(data, "data\\clis", 1, False)
+
+import pickle
+with open(f"data\\clis\\classes.bin", "wb") as f:
+    pickle.dump(classes, f)
+
+"""
 from src.shared.utils import dprint
 from src.core.llm import GROQ
 
@@ -32,3 +67,4 @@ while True:
     except Exception as e:
         llm.save_conversation("bin\\cache\\converse.txt")
         break
+"""

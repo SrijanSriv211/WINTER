@@ -41,39 +41,43 @@ def calc_total_time(seconds):
 
     return ", ".join(t) if t else "0 seconds"
 
-def prepare_data(encoded_data, path="bin", data_division=1):
-	"""
-	Generate `train.bin` and `val.bin` from encoded data.
+def prepare_data(encoded_data, path="bin", data_division=1, convert_to_tensor=True):
+    """
+    Generate `train.bin` and `val.bin` from encoded data.
+    1. `encoded_data`: The encoded training text data.
 
-	Use this only once when you don't have `train.bin` and `val.bin`
+    For eg,
+    ```python
+    encode(text, stoi=stoi)
+    ```
 
-	If you already have `train.bin` and `val.bin`, then use `get_data` function.
+    2. `data_division`: The first `(data_division * 100)%` will be train, rest val.
 
-	1. `encoded_data`: The encoded training text data.
+        If `data_division = 1`, then only `train.bin` will be saved and no data splitting will be done.
 
-	For eg,
-	```python
-	encode(text, stoi=stoi)
-	```
+    3. `path`: Path where `train.bin` and `val.bin` will be saved
+    """
 
-	2. `data_division`: The first `(data_division * 100)%` will be train, rest val
-	3. `path`: Path where `train.bin` and `val.bin` will be saved
-	"""
+    data = torch.tensor(encoded_data, dtype=torch.long) if convert_to_tensor else encoded_data
 
-	data = torch.tensor(encoded_data, dtype=torch.long)
+    # print the number of tokens
+    print(f"{(len(data)/1e6)}M", "total tokens")
 
-	# train and test splits
-	n = int(data_division * len(data)) # the first (data_division * 100)% will be train, rest val
-	train_data = data[:n]
-	val_data = data[n:] if 0 < data_division < 1 else data[:n]
+    if 0 < data_division < 1:
+        # train and test splits
+        n = int(data_division * len(data)) # the first (data_division * 100)% will be train, rest val
+        train_data = data[:n]
+        val_data = data[n:] if 0 < data_division < 1 else data[:n]
 
-	# print the number of tokens
-	print(f"{(len(data)/1e6)}M", "total tokens")
-	print(f"{(len(train_data)/1e6)}M", "train tokens,", f"{(len(val_data)/1e6)}M", "test tokens")
+        print(f"{(len(train_data)/1e6)}M", "train tokens,", f"{(len(val_data)/1e6)}M", "test tokens")
 
-    # save the data
-	with open(f"{path}\\train.bin", "wb") as f:
-		pickle.dump(train_data, f)
+        # save the data
+        with open(f"{path}\\train.bin", "wb") as f:
+            pickle.dump(train_data, f)
 
-	with open(f"{path}\\val.bin", "wb") as f:
-		pickle.dump(val_data, f)
+        with open(f"{path}\\val.bin", "wb") as f:
+            pickle.dump(val_data, f)
+
+    else:
+        with open(f"{path}\\train.bin", "wb") as f:
+            pickle.dump(data, f)
