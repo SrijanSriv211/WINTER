@@ -4,56 +4,12 @@ from colorama import Style, Fore, init
 from contextlib import nullcontext
 import torch._inductor.config as config
 import pickle, random, time, math, os
-import torch.amp, torch
+import torch.amp, torch, json
 
 init(autoreset=True)
 
-CONFIG = dict(
-	# dataset
-	load_from_file = True,
-	train_data = "data\\train.bin",
-	val_data = "data\\val.bin",
-
-    # checkpoints
-    # checkpoints = {
-    #     "path": "bin\\ck",
-    #     "interval": 200
-    # },
-    checkpoints = None,
-	save_path = "bin\\claw.bin",
-
-	max_iters = 2000,
-	eval_interval = 100,
-	log_interval = 100,
-	eval_iters = 100,
-
-    # data
-    gradient_accumulation_steps = 8, # used to simulate larger batch sizes
-    batch_size = 16, # if gradient_accumulation_steps > 1, this is the micro-batch size
-    block_size = 128,
-
-    # model
-    vocab_size = 4282,
-    n_layer = 2,
-    n_head = 2,
-    n_embd = 128,
-    dropout = 0, # for pretraining 0 is good, for finetuning try 0.1+
-
-    # learning rate decay settings
-    learning_rate = 1e-3, # max learning rate
-    weight_decay = 0,
-    grad_clip = 1, # clip gradients at this value, or disable if == 0.0
-
-    decay_lr = True, # whether to decay the learning rate
-    warmup_iters = 500, # how many steps to warm up for
-    lr_decay_iters = 2000, # should be ~= max_iters per Chinchilla
-    min_lr = 1e-4, # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
-
-    # system
-    device = "cpu",
-    seed = "auto", # examples: "auto", 1337 or any other number
-    compile = True # use PyTorch 2.0 to compile the model to be faster
-)
+with open("res\\config.json", "r", encoding="utf-8") as f:
+	CONFIG = json.load(f)["GPT"]
 
 device = ("cuda" if torch.cuda.is_available() else "cpu") if CONFIG["device"] == "auto" else CONFIG["device"]
 
