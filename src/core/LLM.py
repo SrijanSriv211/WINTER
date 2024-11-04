@@ -43,7 +43,7 @@ class GROQ:
             return []
 
         with open(path, "r", encoding="utf-8") as f:
-            return [i.strip() for i in f.readlines()]
+            return [i.strip() for i in f.readlines()][:-5000]
 
     # Save all the messages, conversations and prompts
     def save_conversation(self, path):
