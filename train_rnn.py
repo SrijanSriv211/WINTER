@@ -74,7 +74,7 @@ def get_batch(split):
 # helps estimate an arbitrarily accurate loss over either split using many batches
 @torch.no_grad()
 def estimate_loss(eval_iters):
-	out = []
+	out = {}
 	model.eval()
 	for split in ["train", "val"]:
 		losses = torch.zeros(eval_iters)
@@ -126,12 +126,12 @@ while True:
 			metrics["train"].append(losses["train"])
 			metrics["val"].append(losses["val"])
 
-		if config["checkpoints"] and iter_num % config["checkpoints"]["interval"] == 0:
-			if not os.path.isdir(config["checkpoints"]["path"]):
-				os.mkdir(config["checkpoints"]["path"])
+		if CONFIG["checkpoints"] != None and iter_num % CONFIG["checkpoints"]["interval"] == 0:
+			if not os.path.isdir(CONFIG["checkpoints"]["path"]):
+				os.mkdir(CONFIG["checkpoints"]["path"])
 
 			if iter_num > 0:
-				torch.save(get_trained_model(), f"{config["checkpoints"]["path"]}\\{config["checkpoints"]["name"]}_step{iter_num}.pth")
+				torch.save(get_trained_model(), f"{CONFIG["checkpoints"]["path"]}\\{CONFIG["checkpoints"]["name"]}_step{iter_num}.pth")
 
 		# sample a batch of data
 		X, Y = get_batch("train")

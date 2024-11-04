@@ -66,23 +66,30 @@ class RNN(nn.Module):
 # ---------------------------------------------------------------------------
 
 class sample:
-    def __init__(self, checkpoint, device="auto", auto_load=True):
+    def __init__(self, device="auto"):
         self.device = ("cuda" if torch.cuda.is_available() else "cpu") if device == "auto" else device
 
-        self.state_dict = checkpoint["model"]
-        self.gptconf = RNNConfig(**checkpoint["hyperparams"])
-
-        # automatically load the model
-        if auto_load: self.load()
-
-    def load(self):
+    def load(self, checkpoint, compile=False):
         # create an instance of RNN
-        self.model = RNN(self.gptconf)
+        rnnconf = RNNConfig(**checkpoint["hyperparams"])
+        self.model = RNN(rnnconf)
+
+        # remove `_orig_mod.` prefix from state_dict (if it's there)
+        state_dict = checkpoint["model"]
+        unwanted_prefix = '_orig_mod.'
+
+        for k, v in list(state_dict.items()):
+            if k.startswith(unwanted_prefix):
+                state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
 
         # load the saved model state_dict
-        self.model.load_state_dict(self.state_dict)
+        self.model.load_state_dict(state_dict)
         self.model.to(self.device)
-        self.model.eval()  # set the model to evaluation mode
+        self.model.eval() # set the model to evaluation mode
+
+        if compile:
+            #NOTE: backend="inductor" is giving some errors so switched to aot_eager.
+            self.model = torch.compile(self.model, backend="aot_eager") # requires PyTorch 2.0
 
     # use the model for classification or other tasks
     def predict(self, X, classes):
@@ -93,4 +100,4 @@ class sample:
 
     def prepare_context(self, X):
         X = X.reshape(1, X.shape[0])
-        return torch.tensor(X).to(RNNConfig.device)
+        return torch.tensor(X).to(self.device)
