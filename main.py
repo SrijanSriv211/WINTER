@@ -1,58 +1,37 @@
 from src.tokenizers.bpe import RegexTokenizer
-from src.models.gpt import train, sample
+from src.models.gpt import sample
 from src.shared.utils import dprint
-import torch
-
-raw_data = ""
-with open("data\\claw.txt", "r", encoding="utf-8") as f:
-    raw_data = f.read()
-
-with open("data\\jokes.txt", "r", encoding="utf-8") as f:
-    raw_data = "\n" + f.read()
-
-with open("data\\facts.txt", "r", encoding="utf-8") as f:
-    raw_data += "\n" + f.read()
-
-with open("data\\data.txt", "r", encoding="utf-8") as f:
-    raw_data += "\n" + f.read()[:25_000_000]
-
-with open("data\\LLM data.txt", "r", encoding="utf-8") as f:
-    raw_data += "\n" + f.read()[:25_000_000]
+import torch, json, os
 
 tokenizer = RegexTokenizer()
-tokenizer.from_scratch()
-tokenizer.train(raw_data, 4279)
-tokenizer.register_special_tokens({"<|pad|>": 4279, "<|sot|>": 4280, "<|eot|>": 4281})
-tokenizer.save("bin\\cl2k")
-
-# import time
-# from src.shared.utils import calc_total_time
-# tokenizer.load("bin\\cl2k.model")
-# print(len(raw_data))
+tokenizer.load("bin\\cl4k.model")
+# tokenizer.train("data\\tok_data.txt", 4279, batch_size=100, is_file=True)
+# tokenizer.register_special_tokens({"<|pad|>": 4279, "<|sot|>": 4280, "<|eot|>": 4281})
+# tokenizer.save("bin\\cl4k")
 
 # CONFIG = dict(
 #     # checkpoints
 #     checkpoints = {
 #         "path": "bin\\ck",
 #         "name": "claw",
-#         "interval": 1000
+#         "interval": 200
 #     },
 
 #     # data
-#     gradient_accumulation_steps = 2 * 8, # used to simulate larger batch sizes
-#     batch_size = 32, # if gradient_accumulation_steps > 1, this is the micro-batch size
-#     block_size = 512,
+#     gradient_accumulation_steps = 8, # used to simulate larger batch sizes
+#     batch_size = 16, # if gradient_accumulation_steps > 1, this is the micro-batch size
+#     block_size = 128,
 
 #     # model
-#     vocab_size = 2282,
-#     n_layer = 4,
-#     n_head = 4,
-#     n_embd = 32,
-#     dropout = 0.0, # for pretraining 0 is good, for finetuning try 0.1+
-#     bias = True, # do we use bias inside LayerNorm and Linear layers?
+#     vocab_size = 4282,
+#     n_layer = 8,
+#     n_head = 8,
+#     n_embd = 512,
+#     dropout = 0, # for pretraining 0 is good, for finetuning try 0.1+
+#     bias = False, # do we use bias inside LayerNorm and Linear layers?
 
 #     # adamw optimizer
-#     learning_rate = 3e-4, # max learning rate
+#     learning_rate = 3e-3, # max learning rate
 #     weight_decay = 1e-1,
 #     beta1 = 0.9,
 #     beta2 = 0.95,
@@ -61,24 +40,25 @@ tokenizer.save("bin\\cl2k")
 #     # learning rate decay settings
 #     decay_lr = True, # whether to decay the learning rate
 #     warmup_iters = 1000, # how many steps to warm up for
-#     lr_decay_iters = 10000, # should be ~= max_iters per Chinchilla
+#     lr_decay_iters = 5000, # should be ~= max_iters per Chinchilla
 #     min_lr = 3e-5, # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 
 #     # system
-#     device = "cpu", # examples: "cpu", "cuda", "cuda:0", "cuda:1" etc., or try "mps" on macbooks
+#     device = "cpu",
 #     seed = "auto", # examples: "auto", 1337 or any other number
-#     compile = False # use PyTorch 2.0 to compile the model to be faster
+#     compile = True # use PyTorch 2.0 to compile the model to be faster
 # )
 
 # t = train(CONFIG)
 # t.from_scratch()
-# t.prepare_data(tokenizer.encode(raw_data), 1)
-# out = t.train(max_iters=10000, eval_interval=2000, log_interval=500)
-# t.plot("res\\claw.png")
+# # t.from_pretrained(torch.load("bin\\ck\\claw.pth"))
+# t.get_data("data\\train", "data\\val", is_file=False)
+# out = t.train(max_iters=5000, eval_interval=200, log_interval=10)
 # torch.save(out, "bin\\claw.pth")
 
-# # out = torch.load("bin\\claw.pth", map_location="cpu")
-# i = sample(out)
+out = torch.load("bin\\claw.bin")
+i = sample()
+i.load(out)
 
 # test = [
 #     "Wake up WINTER daddy's home\n<|sot|>",
@@ -88,12 +68,13 @@ tokenizer.save("bin\\cl2k")
 
 # for text in test:
 #     dprint(tokenizer.decode(i.generate(tokenizer.encode(text, allowed_special="all"))))
+dprint(tokenizer.decode(i.generate()))
 
 """
 from src.shared.utils import dprint
-from src.core.llm import LLM
+from src.core.llm import GROQ
 
-llm = LLM(
+llm = GROQ(
     system = "Your name is WINTER (Witty Intelligence with Natural Emotions and Rationality). "
     "As your name suggests you are kind, helpful, witty, intelligent, emotional, empathetic, rational, clever, charming, funny, innocent, cute and curious. "
     "As innocent, cute, wholesome and curious as Wall-E from Pixar's movie Wall-E. "
