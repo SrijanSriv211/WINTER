@@ -20,7 +20,7 @@ print("Training on", f"{Fore.YELLOW}{Style.BRIGHT}{device}", f"{Fore.WHITE}{Styl
 
 hyperparams = dict(dropout=CONFIG["dropout"])
 # read off the created config params, so we can store them into checkpoint correctly
-for k in ["input_size", "output_size", "n_layer", "n_hidden", "n_embd", "dropout"]:
+for k in ["input_size", "output_size", "n_layer", "n_hidden", "dropout"]:
 	hyperparams[k] = CONFIG[k]
 
 rnnconf = RNNConfig(**hyperparams)
@@ -65,8 +65,8 @@ def get_batch(split):
 	path = CONFIG["train_data"] if split == "train" else CONFIG["val_data"]
 	data = _load_data(path)
 
-	ix = torch.randint(len(data) - 1, (config["batch_size"],))
-	x = torch.stack([data[i][0] for i in ix])
+	ix = torch.randint(len(data) - 1, (CONFIG["batch_size"],))
+	x = torch.stack([data[i][0] for i in ix]).float()
 	y = torch.stack([data[i][1] for i in ix])
 	x, y = x.to(device), y.to(device)
 	return x, y
@@ -88,7 +88,8 @@ def estimate_loss(eval_iters):
 	return out
 
 # report number of parameters
-print(f"{Fore.WHITE}{Style.BRIGHT}{model.get_num_params()/1e6}M", "parameters")
+n_params = sum(p.numel() for p in model.parameters())
+print(f"{Fore.WHITE}{Style.BRIGHT}{n_params/1e6}M", "parameters")
 
 # compile the model
 if CONFIG["compile"]:

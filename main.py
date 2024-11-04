@@ -21,16 +21,17 @@ for intent in obj["clis"]:
     classes.append(skill)
 
     for pattern in patterns:
-        xy.append((pattern, skill))
+        tokenized_pattern = enc.encode(pattern, allowed_special="all")
+        tokenized_pattern.extend([4279] * (64 - len(tokenized_pattern)))
+        xy.append((tokenized_pattern, skill))
+
+# print(len(max([x for x, y in xy], key=len)))
+# print(len(classes))
 
 import torch
-data = [(torch.tensor(enc.encode(x, allowed_special="all")), torch.tensor(classes.index(y))) for x, y in xy]
+data = [(torch.tensor(x, dtype=torch.long), torch.tensor(classes.index(y), dtype=torch.long)) for x, y in xy]
 
 prepare_data(data, "data\\clis", 1, False)
-
-import pickle
-with open(f"data\\clis\\classes.bin", "wb") as f:
-    pickle.dump(classes, f)
 
 """
 from src.shared.utils import dprint

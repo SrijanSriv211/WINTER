@@ -10,10 +10,8 @@ class RNNConfig:
     input_size: int = None
     output_size: int = None
     n_hidden: int = 4
-    n_embd: int = 8
     n_layer: int = 4
     dropout: int = 0
-    bias: bool = True
 
 class RNN(nn.Module):
     def __init__(self, config):
@@ -23,15 +21,10 @@ class RNN(nn.Module):
         self.config = config
 
         # Defining the layers
-        self.embedding = nn.Embedding(config.input_size, config.n_embd) if config.n_embd != None else None # Embedding Layer
-        self.rnn = nn.RNN(config.n_embd, config.n_hidden, config.n_layer, bias=True, batch_first=True, dropout=config.dropout) # RNN Layer
+        self.rnn = nn.RNN(config.input_size, config.n_hidden, config.n_layer, batch_first=True, dropout=config.dropout) # RNN Layer
         self.fc = nn.Linear(config.n_hidden, config.output_size) # Fully connected layer
 
     def forward(self, x, targets=None):
-        # Pass input through the embedding layer
-        if (self.embedding != None):
-            x = self.embedding(x)
-
         # Apply RNN layer
         out, _ = self.rnn(x)
 
