@@ -337,34 +337,3 @@ class train:
             "metrics": self.metrics,
             "best_loss": self.best_loss
         }
-
-    # def plot(self, path):
-    #     self._graph("train-val loss", [(self.metrics["train"], "train loss"), (self.metrics["val"], "val loss")], path + "-train-val.png")
-    #     self._graph("eval loss", [(self.metrics["eval"], "eval loss")], path + "-eval.png")
-
-    #     self._graph("metrics", [
-    #         (self.metrics["train"], "train loss"),
-    #         (self.metrics["eval"], "eval loss"),
-    #         (self.metrics["val"], "val loss"),
-    #     ], path + ".png")
-
-    # def _graph(self, title, plot_data, save_path):
-    #     plt.style.use("seaborn-v0_8-dark")
-
-    #     for param in ["figure.facecolor", "axes.facecolor", "savefig.facecolor"]:
-    #         plt.rcParams[param] = "#030407"
-
-    #     for param in ["text.color", "axes.labelcolor", "xtick.color", "ytick.color"]:
-    #         plt.rcParams[param] = "0.9"
-
-    #     plt.figure(figsize=(18, 8))
-
-    #     for losses, label in plot_data:
-    #         plt.plot(losses, label=label)
-
-    #     plt.xlabel("iteration", fontsize=12)
-    #     plt.ylabel("value", fontsize=12)
-    #     plt.legend(fontsize=12)
-    #     plt.title(title, fontsize=14)
-    #     plt.savefig(save_path, bbox_inches="tight")
-    #     plt.close()
