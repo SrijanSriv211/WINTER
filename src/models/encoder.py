@@ -1,7 +1,8 @@
 from ..shared.utils import calc_total_time
 from colorama import init, Fore, Style
 from collections import Counter
-import unicodedata, pickle, regex, time
+from itertools import chain
+import pickle, regex, time
 
 init(autoreset=True)
 
@@ -10,7 +11,7 @@ init(autoreset=True)
 # https://github.com/openai/tiktoken/blob/main/tiktoken_ext/openai_public.py
 GPT4_SPLIT_PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
 
-# a few helper functions useful for both RegexTokenizer
+# a few helper functions useful for both Encoder
 def get_stats(ids, most_common=-1):
 	stats = Counter([
 		pair
@@ -40,7 +41,7 @@ def merge(ids, merges: dict):
 
 	return new_ids
 
-class RegexTokenizer:
+class Encoder:
 	def __init__(self, pattern=None):
 		"""
 		- pattern: optional string to override the default (GPT-4 split pattern)
@@ -54,12 +55,13 @@ class RegexTokenizer:
 		self.inverse_special_tokens = {}
 		self.vocab = {idx: bytes([idx]) for idx in range(256)} # idx -> bytes
 
-	def train(self, text, vocab_size, batch_size=10, is_file=False):
+	def train(self, text, vocab_size, batch_size=10, drop_bounds_after=0, is_file=False):
 		"""
 		- text: text dataset to train the tokenizer on
 		- is_file: if the given text data is raw strings or a text file to load
 		- vocab_size: max number of merges to be made - 256 bytes
 		- batch_size: how many merges to be made before replacing all the made merges in encoded sequence
+		- drop_bounds_after: dropout regex boundaries after `n` merges (default: 0 means no dropout)
 		"""
 		assert vocab_size >= 256
 		assert 1 <= batch_size <= vocab_size
@@ -84,13 +86,16 @@ class RegexTokenizer:
 
 		merges = {}
 
+		def can_drop_bounds(i):
+			return i >= drop_bounds_after and drop_bounds_after > 0
+
 		# count the number of times every consecutive pair appears
 		i = 0
 		n_merges = vocab_size - 256
 		while i < n_merges:
 			# passing in stats will update it in place, adding up counts
 			# get the pairs with the highest counts
-			for pair, occurrences in get_stats(ids, most_common=batch_size).items():
+			for pair, occurrences in self._get_conditional_stats(ids, most_common=batch_size).items() if can_drop_bounds(i) else get_stats(ids, most_common=batch_size).items():
 				# mint a new token: assign it the next available id
 				idx = 256 + i
 
@@ -111,16 +116,33 @@ class RegexTokenizer:
 				)
 				last_print_time = time.time()
 				i += 1
-				if i >= n_merges:
+				if i == drop_bounds_after or i >= n_merges:
 					break
+
+			# flatten ids if it is a list of lists (ids from with-bounds-merges)
+			if can_drop_bounds(i) and isinstance(ids, list) and len(ids) > 0 and isinstance(ids[0], list):
+				print("dropping regex boundaries")
+				ids = list(chain.from_iterable(ids))
+
+			# replace all occurrences of pair in ids with idx
+			# ids = [merge(chunk_ids, merges) for chunk_ids in ids]
+			ids = merge(ids, merges) if can_drop_bounds(i) else [merge(chunk_ids, merges) for chunk_ids in ids]
+
 			if i >= n_merges:
 				break
 
-			# replace all occurrences of pair in ids with idx
-			ids = [merge(chunk_ids, merges) for chunk_ids in ids]
-
 		# print the total time taken to do all the merges
 		print("time taken: ", f"{Fore.WHITE}{Style.BRIGHT}{calc_total_time(time.time()-start_time)}")
+
+	# a few helper functions useful for both Encoder
+	def _get_conditional_stats(self, ids, most_common=-1):
+		stats = Counter([
+			pair
+			for pair in zip(ids, ids[1:])
+			if self.decode(list(pair)).replace(" ", "").isalpha()
+		])
+
+		return dict(stats.most_common(most_common) if most_common > 0 else stats)
 
 	# special_tokens is a dictionary of str -> int
 	# example: {"<|endoftext|>": 100257}
