@@ -2,12 +2,12 @@ import sys
 sys.path.insert(0, "D:\\Dev Projects\\WINTER")
 
 from src.shared.nltk_utils import one_hot_encoding
-from src.tokenizers.bpe import RegexTokenizer
+from src.models.encoder import Encoder
 from src.shared.utils import prepare_data
 import json
 
-enc = RegexTokenizer()
-enc.load("bin\\cl4k.model")
+enc = Encoder()
+enc.load("bin\\cl8k.bin")
 
 with open("data\\clis\\clis.json", "r", encoding="utf-8") as f:
     obj = json.load(f)
@@ -21,7 +21,7 @@ for intent in obj:
 
 	if patterns == []:
 		continue
-    
+
 	classes.append(skill)
 
 	for pattern in patterns:
