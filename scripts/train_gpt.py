@@ -11,7 +11,7 @@ import torch.amp, torch, json
 
 init(autoreset=True)
 
-with open("config.json", "r", encoding="utf-8") as f:
+with open("scripts\\config.json", "r", encoding="utf-8") as f:
 	CONFIG = json.load(f)["GPT"]
 
 device = ("cuda" if torch.cuda.is_available() else "cpu") if CONFIG["device"] == "auto" else CONFIG["device"]
@@ -52,6 +52,37 @@ metrics = {
 }
 iter_num = 0
 best_loss = 0
+
+# load all the files
+train_data, val_data = 0, 0
+if CONFIG["load_from_file"]:
+	# try to load and check all the data
+	with open(CONFIG["train_data"], "rb") as f:
+		train_data = len(pickle.load(f))
+
+	with open(CONFIG["val_data"], "rb") as f:
+		val_data = len(pickle.load(f))
+
+else:
+	for i in os.listdir(CONFIG["train_data"]):
+		# try to load and check all the data
+		with open(f"{CONFIG["train_data"]}\\{i}", "rb") as f:
+			train_data += len(pickle.load(f))
+
+	for i in os.listdir(CONFIG["val_data"]):
+		with open(f"{CONFIG["val_data"]}\\{i}", "rb") as f:
+			val_data += len(pickle.load(f))
+
+data = train_data + val_data
+
+# print the number of tokens
+print(f"{Fore.WHITE}{Style.BRIGHT}{(data/1e6)}M", "total tokens")
+print(
+	f"{Fore.WHITE}{Style.BRIGHT}{(train_data/1e6)}M", "train tokens,",
+	f"{Fore.WHITE}{Style.BRIGHT}{(val_data/1e6)}M", "test tokens",
+	f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if not (0 < (train_data/data) < 1) else ""
+)
+del data, train_data, val_data # these are useless vars, delete them
 
 def get_trained_model(model, optimizer):
 	return {
