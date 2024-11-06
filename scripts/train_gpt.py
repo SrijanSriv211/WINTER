@@ -11,7 +11,7 @@ import torch.amp, torch, json
 
 init(autoreset=True)
 
-with open("res\\config.json", "r", encoding="utf-8") as f:
+with open("config.json", "r", encoding="utf-8") as f:
 	CONFIG = json.load(f)["GPT"]
 
 device = ("cuda" if torch.cuda.is_available() else "cpu") if CONFIG["device"] == "auto" else CONFIG["device"]

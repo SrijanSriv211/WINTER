@@ -9,7 +9,7 @@ import pickle, random, torch, json, time, os
 
 init(autoreset=True)
 
-with open("res\\config.json", "r", encoding="utf-8") as f:
+with open("config.json", "r", encoding="utf-8") as f:
 	CONFIG = json.load(f)["RNN"]
 
 device = ("cuda" if torch.cuda.is_available() else "cpu") if CONFIG["device"] == "auto" else CONFIG["device"]

@@ -1,7 +1,6 @@
 __pycache__/
 .venv/
-powertoys/
 cache/
 data/
 bin/
-res/
+scripts/config.json
