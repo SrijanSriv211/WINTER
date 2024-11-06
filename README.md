@@ -67,3 +67,104 @@ If the repository was cloned non-recursively previously, use `git submodule upda
 > For example:
 > 1. `cl100kaw100k` is a **text generation model with 100k parameters trained on 100k tokens**
 > 2. `cl1kis10` is a **text classification model with 10 classes trained on 1k tokens**
+
+<ins>**3. Train encoder:**</ins>
+
+```python
+from src.models.encoder import Encoder
+enc = Encoder()
+enc.train("dataset.txt", 8279, batch_size=100, drop_bounds_after=4279, is_file=True)
+enc.register_special_tokens({"<|pad|>": 8279, "<|sot|>": 8280, "<|eot|>": 8281})
+enc.save("bin\\cl8k.bin")
+```
+
+<ins>**4. Train WINTER:**</ins>
+
+First create a `json` file in scripts folder called `config.json` with the following format
+
+```json
+{
+	"GPT": {
+		"load_from_file": false,
+		"train_data": "data\\claw\\train",
+		"val_data": "data\\claw\\val",
+
+		"checkpoints": {
+			"path": "bin\\ck",
+			"interval": 200
+		},
+		"save_path": "bin\\claw.bin",
+
+		"max_iters": 2000,
+		"eval_interval": 200,
+		"log_interval": 10,
+		"eval_iters": 1000,
+
+		"gradient_accumulation_steps": 8,
+		"batch_size": 16,
+		"block_size": 256,
+
+		"vocab_size": 8282,
+		"n_layer": 8,
+		"n_head": 4,
+		"n_embd": 512,
+		"dropout": 0,
+
+		"learning_rate": 1e-3,
+		"weight_decay": 0,
+		"grad_clip": 1,
+
+		"decay_lr": true,
+		"warmup_iters": 500,
+		"lr_decay_iters": 2000,
+		"min_lr": 1e-4,
+
+		"device": "cpu",
+		"seed": "auto",
+		"compile": true
+	},
+
+	"RNN": {
+		"load_from_file": true,
+		"train_data": "data\\clis\\train.bin",
+		"val_data": "data\\clis\\train.bin",
+
+		"checkpoints": null,
+		"save_path": "bin\\clis.bin",
+
+		"max_iters": 5000,
+		"eval_interval": 500,
+		"log_interval": 100,
+		"eval_iters": 100,
+
+		"batch_size": 32,
+		"input_size": 4282,
+		"output_size": 19,
+		"n_layer": 2,
+		"n_hidden": 8,
+		"dropout": 0.0,
+
+		"learning_rate": 1e-3,
+
+		"device": "cpu",
+		"seed": "auto",
+		"compile": true
+	}
+}
+```
+
+Then tweak the values as you like. After that run the following command in the terminal
+
+1. If you want to train the GPT model
+```console
+> python prepare_gpt.py
+> python train_gpt.py
+> python test_gpt.py
+```
+
+2. If you want to train the RNN model
+```console
+> python prepare_rnn.py
+> python train_rnn.py
+> python test_rnn.py
+```
