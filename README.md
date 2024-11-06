@@ -91,6 +91,7 @@ First create a `json` file in scripts folder called `config.json` with the follo
 
 		"checkpoints": {
 			"path": "bin\\ck",
+			"name": "claw",
 			"interval": 200
 		},
 		"save_path": "bin\\claw.bin",

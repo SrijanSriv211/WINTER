@@ -164,7 +164,7 @@ while True:
 				os.mkdir(CONFIG["checkpoints"]["path"])
 
 			if iter_num > 0:
-				torch.save(get_trained_model(), f"{CONFIG["checkpoints"]["path"]}\\{CONFIG["checkpoints"]["name"]}_step{iter_num}.pth")
+				torch.save(get_trained_model(model, optimizer), f"{CONFIG["checkpoints"]["path"]}\\{CONFIG["checkpoints"]["name"]}_step{iter_num}.pth")
 
 		# sample a batch of data
 		X, Y = get_batch("train")

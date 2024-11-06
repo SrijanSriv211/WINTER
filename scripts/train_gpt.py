@@ -210,7 +210,7 @@ while True:
 
 			if iter_num > 0:
 				print(f"saved checkpoint at step {Fore.WHITE}{Style.BRIGHT}{iter_num}")
-				torch.save(get_trained_model(), f"{CONFIG["checkpoints"]["path"]}\\{CONFIG["checkpoints"]["name"]}_step{iter_num}.pth")
+				torch.save(get_trained_model(model, optimizer), f"{CONFIG["checkpoints"]["path"]}\\{CONFIG["checkpoints"]["name"]}_step{iter_num}.bin")
 
 		# forward backward update, with optional gradient accumulation to simulate larger batch size
 		# and using the GradScaler if data type is float16
