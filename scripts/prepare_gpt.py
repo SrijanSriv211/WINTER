@@ -3,6 +3,7 @@ sys.path.insert(0, "D:\\Dev Projects\\WINTER")
 
 from src.models.encoder import Encoder
 from src.shared.utils import prepare_data
+from itertools import chain
 import json
 
 enc = Encoder()
@@ -13,12 +14,12 @@ def get_foundational_dataset():
 
 	with open("data\\clis\\clis.json", "r", encoding="utf-8") as f:
 		obj = json.load(f)
-
-	for intent in obj:
-		if intent["patterns"] == []:
-			continue
-
-		data.extend(intent["patterns"])
+		data.append("\n".join(
+			# flatten the patterns list
+			list(chain.from_iterable(
+				[intent["patterns"] for intent in obj if intent["patterns"] != []]
+			))
+		))
 
 	with open("data\\claw\\raw\\Knowledge copy.txt", "r", encoding="utf-8") as f:
 		data.append(f.read())
