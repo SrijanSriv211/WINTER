@@ -2,7 +2,7 @@ import sys
 sys.path.insert(0, "D:\\Dev Projects\\WINTER")
 
 from src.shared.nltk_utils import one_hot_encoding
-from src.tokenizers.bpe import RegexTokenizer
+from src.models.encoder import Encoder
 from colorama import Style, Fore, init
 from src.models.rnn import sample
 import pickle, torch
@@ -76,8 +76,8 @@ init(autoreset=True)
 s = sample()
 s.load(torch.load("bin\\clis.bin"), True)
 
-enc = RegexTokenizer()
-enc.load("bin\\cl4k.model")
+enc = Encoder()
+enc.load("bin\\cl8k.bin")
 
 with open("data\\clis\\classes.bin", "rb") as f:
     classes = pickle.load(f)

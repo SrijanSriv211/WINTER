@@ -262,13 +262,13 @@ class Encoder:
 
 		return ids
 
-	def save(self, file_prefix):
+	def save(self, checkpoint):
 		"""
-		Saves two files: file_prefix.model
+		Saves two files: checkpoint.bin
 		- model file is the critical one, intended for load()
 		"""
 		# write the model: to be used in load() later
-		with open(file_prefix + ".model", "wb") as f:
+		with open(checkpoint, "wb") as f:
 			pickle.dump({
 				"pattern": self.pattern,
 				"special": self.special_tokens,
@@ -276,8 +276,6 @@ class Encoder:
 			}, f)
 
 	def load(self, checkpoint: str):
-		assert checkpoint.endswith(".model")
-
 		# read the model file
 		with open(checkpoint, "rb") as f:
 			model = pickle.load(f)
