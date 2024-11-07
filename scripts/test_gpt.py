@@ -17,7 +17,7 @@ import warnings, torch
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 s = sample()
-s.load(torch.load("bin\\claw.bin"), True)
+s.load(torch.load(sys.argv[1]), True)
 
 enc = Encoder()
 enc.load("bin\\cl8k.bin")
