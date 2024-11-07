@@ -88,6 +88,8 @@ First create a `json` file in scripts folder called `config.json` with the follo
 		"load_from_file": false,
 		"train_data": "data\\claw\\train",
 		"val_data": "data\\claw\\val",
+		"init_from": "pretrained,bin\\claw.bin",
+		// "init_from": "scratch",
 
 		"checkpoints": {
 			"path": "bin\\ck",

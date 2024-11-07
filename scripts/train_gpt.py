@@ -5,9 +5,20 @@ from src.shared.utils import calc_total_time
 from src.models.gpt import GPTConfig, GPT
 from colorama import Style, Fore, init
 from contextlib import nullcontext
+import warnings, pickle, random, time, math, os
 import torch._inductor.config as config
-import pickle, random, time, math, os
 import torch.amp, torch, json
+
+# supress pytorch's future warning:
+# You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly.
+# It is possible to construct malicious pickle data which will execute arbitrary code during unpickling
+# (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details).
+# In a future release, the default value for `weights_only` will be flipped to `True`.
+# This limits the functions that could be executed during unpickling.
+# Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`.
+# We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file.
+# Please open an issue on GitHub for any issues related to this experimental feature.
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 init(autoreset=True)
 
@@ -29,29 +40,90 @@ ctx = nullcontext() if device == "cpu" else torch.amp.autocast(device_type=devic
 # print the device
 print("Training on", f"{Fore.YELLOW}{Style.BRIGHT}{device}", f"{Fore.WHITE}{Style.BRIGHT}({torch.initial_seed()})")
 
-hyperparams = dict(dropout=CONFIG["dropout"])
-# read off the created CONFIG params, so we can store them into checkpoint correctly
-for k in ["n_layer", "n_head", "n_embd", "block_size", "vocab_size"]:
-	hyperparams[k] = CONFIG[k]
+def from_scratch():
+	hyperparams = dict(dropout=CONFIG["dropout"])
+	# read off the created CONFIG params, so we can store them into checkpoint correctly
+	for k in ["n_layer", "n_head", "n_embd", "block_size", "vocab_size"]:
+		hyperparams[k] = CONFIG[k]
 
-gptconf = GPTConfig(**hyperparams)
-# create an instance of GPT
-model = GPT(gptconf)
-model.to(device)
+	gptconf = GPTConfig(**hyperparams)
+	# create an instance of GPT
+	model = GPT(gptconf)
+	model.to(device)
 
-# optimizer
-optimizer = model.configure_optimizers(CONFIG["weight_decay"], CONFIG["learning_rate"], CONFIG["device"])
+	# optimizer
+	optimizer = model.configure_optimizers(CONFIG["weight_decay"], CONFIG["learning_rate"], CONFIG["device"])
 
-# a dict for keep track of all the losses to be plotted.
-metrics = {
-	"train": [],
-	"eval": [],
-	"val": [],
-	"mfu": [],
-	"lr": []
-}
-iter_num = 0
-best_loss = 0
+	# a dict for keep track of all the losses to be plotted.
+	metrics = {
+		"train": [],
+		"eval": [],
+		"val": [],
+		"mfu": [],
+		"lr": []
+	}
+	iter_num = 0
+	best_loss = 0
+
+	return model, optimizer, hyperparams, iter_num, best_loss, metrics
+
+def from_pretrained(checkpoint):
+	# make loading pretrained models backwards compatible with previously trained models
+	metrics = [checkpoint[i] for i in ["metrics", "losses"] if i in checkpoint.keys()]
+	metrics = {
+		"train": [],
+		"eval": [],
+		"val": [],
+		"mfu": [],
+		"lr": []
+	} if not metrics else metrics[0]
+	for i in ["mfu", "lr"]:
+		if i not in metrics.keys():
+			metrics[i] = []
+
+	# load the state dict and current iteration number of the model
+	state_dict = checkpoint["model"]
+	iter_num = checkpoint["iter_num"]
+	best_loss = checkpoint["best_loss"] if "best_loss" in checkpoint.keys() else 0
+
+	hyperparams = dict(dropout=CONFIG["dropout"])
+	# read off the created config params, so we can store them into checkpoint correctly
+	for k in ["n_layer", "n_head", "n_embd", "block_size", "vocab_size"]:
+		hyperparams[k] = checkpoint["hyperparams"][k]
+
+	gptconf = GPTConfig(**hyperparams)
+
+	# create an instance of GPT
+	model = GPT(gptconf)
+
+	# remove `_orig_mod.` prefix from state_dict (if it's there)
+	state_dict = checkpoint["model"]
+	unwanted_prefix = '_orig_mod.'
+
+	for k, v in list(state_dict.items()):
+		if k.startswith(unwanted_prefix):
+			state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
+
+	model.load_state_dict(state_dict)
+	model.to(device)
+
+	# optimizer
+	optimizer = model.configure_optimizers(CONFIG["weight_decay"], CONFIG["learning_rate"], CONFIG["device"])
+	optimizer.load_state_dict(checkpoint["optimizer"])
+
+	# crop down the model block size if desired, using model surgery
+	if CONFIG["block_size"] < hyperparams["block_size"]:
+		model.crop_block_size(CONFIG["block_size"])
+		hyperparams["block_size"] = CONFIG["block_size"] # so that the checkpoint will have the right value
+
+	return model, optimizer, hyperparams, iter_num, best_loss, metrics
+
+# init model and optimizer
+if CONFIG["init_from"] == "scratch":
+	model, optimizer, hyperparams, iter_num, best_loss, metrics = from_scratch()
+
+elif CONFIG["init_from"].startswith("pretrained,"):
+	model, optimizer, hyperparams, iter_num, best_loss, metrics = from_pretrained(torch.load(CONFIG["init_from"][11:]))
 
 # load all the files
 train_data, val_data = 0, 0
@@ -170,8 +242,9 @@ eval_t0 = time.time()
 t0 = time.time()
 local_iter_num = 0 # number of iterations in the lifetime of this process
 running_mfu = -1.0
+training_loop = True
 
-while True:
+while training_loop:
 	try:
 		# determine and set the learning rate for this iteration
 		lr = get_lr(iter_num) if CONFIG["decay_lr"] else CONFIG["learning_rate"]
@@ -271,8 +344,36 @@ while True:
 			break
 
 	except KeyboardInterrupt:
-		print(f"{Fore.RED}{Style.BRIGHT}Early stopping.")
-		break
+		print("Type")
+		print(f"{Fore.WHITE}{Style.BRIGHT}1. {Fore.BLACK}{Style.BRIGHT}`y` {Style.RESET_ALL}to stop training.")
+		print(f"{Fore.WHITE}{Style.BRIGHT}2. {Fore.BLACK}{Style.BRIGHT}`n` {Style.RESET_ALL}to continue training.")
+		print(f"{Fore.WHITE}{Style.BRIGHT}3. {Fore.BLACK}{Style.BRIGHT}`s` {Style.RESET_ALL}to save model.")
+		print(f"{Fore.WHITE}{Style.BRIGHT}4. {Fore.BLACK}{Style.BRIGHT}`r` {Style.RESET_ALL}to reload config.json.")
+
+		while True:
+			inp = input("> ")
+
+			if inp == "y":
+				print(f"{Fore.RED}{Style.BRIGHT}Early stopping.")
+				training_loop = False
+				break
+
+			elif inp == "n":
+				print(f"{Fore.GREEN}{Style.BRIGHT}Continue training.")
+				break
+
+			elif inp == "s":
+				print(f"{Fore.YELLOW}{Style.BRIGHT}Saving model.")
+				print("Total time:", calc_total_time(time.time() - start_time))
+				torch.save(get_trained_model(model, optimizer), CONFIG["save_path"])
+
+			elif inp == "r":
+				print(f"{Fore.YELLOW}{Style.BRIGHT}config.json{Style.RESET_ALL} reloaded.")
+				with open("scripts\\config.json", "r", encoding="utf-8") as f:
+					CONFIG = json.load(f)["GPT"]
+
+			else:
+				print(f"{Fore.RED}{Style.DIM}Wrong option.")
 
 print("Total time:", calc_total_time(time.time() - start_time))
 torch.save(get_trained_model(model, optimizer), CONFIG["save_path"])
