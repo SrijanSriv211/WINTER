@@ -152,7 +152,7 @@ print(f"{Fore.WHITE}{Style.BRIGHT}{(data/1e6)}M", "total tokens")
 print(
 	f"{Fore.WHITE}{Style.BRIGHT}{(train_data/1e6)}M", "train tokens,",
 	f"{Fore.WHITE}{Style.BRIGHT}{(val_data/1e6)}M", "test tokens",
-	f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if not (0 < (train_data/data) < 1) else ""
+	f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if train_data == val_data else ""
 )
 del data, train_data, val_data # these are useless vars, delete them
 
