@@ -41,23 +41,28 @@ def calc_total_time(seconds):
 
     return ", ".join(t) if t else "0 seconds"
 
-def prepare_data(encoded_data, path="bin", data_division=1, convert_to_tensor=True):
-    """
-    Generate `train.bin` and `val.bin` from encoded data.
-    1. `encoded_data`: The encoded training text data.
+def save_distributed_data(path, name, data, distribution):
+    distributed_data = [] # (path, data)
 
-    For eg,
-    ```python
-    encode(text, stoi=stoi)
-    ```
+    # distribute the data
+    if distribution:
+        if not os.path.isdir(f"{path}\\{name}"):
+            os.mkdir(f"{path}\\{name}")
 
-    2. `data_division`: The first `(data_division * 100)%` will be train, rest val.
+        count = 0
+        for i in range(0, len(data), distribution):
+            distributed_data.append((f"{path}\\{name}\\{count}.bin", data[i:i+distribution]))
+            count += 1
 
-        If `data_division = 1`, then only `train.bin` will be saved and no data splitting will be done.
+    else:
+        distributed_data.append((f"{path}\\{name}.bin", data))
 
-    3. `path`: Path where `train.bin` and `val.bin` will be saved
-    """
+    # save the data
+    for p, d in distributed_data:
+        with open(p, "wb") as f:
+            pickle.dump(d, f)
 
+def prepare_data(encoded_data, path="data", data_division=1, convert_to_tensor=True, distribution=None):
     data = torch.tensor(encoded_data, dtype=torch.long) if convert_to_tensor else encoded_data
 
     # print the number of tokens
@@ -72,12 +77,5 @@ def prepare_data(encoded_data, path="bin", data_division=1, convert_to_tensor=Tr
         print(f"{(len(train_data)/1e6)}M", "train tokens,", f"{(len(val_data)/1e6)}M", "test tokens")
 
         # save the data
-        with open(f"{path}\\train.bin", "wb") as f:
-            pickle.dump(train_data, f)
-
-        with open(f"{path}\\val.bin", "wb") as f:
-            pickle.dump(val_data, f)
-
-    else:
-        with open(f"{path}\\train.bin", "wb") as f:
-            pickle.dump(data, f)
+        save_distributed_data(path, "val", val_data, distribution)
+    save_distributed_data(path, "train", train_data[:] if 0 < data_division < 1 else data[:], distribution)
