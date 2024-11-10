@@ -9,33 +9,6 @@ import torch.nn as nn, torch.amp, torch, inspect, math
 
 init(autoreset=True)
 
-class Rotary(torch.nn.Module):
-    def __init__(self, dim, base=10000):
-        super().__init__()
-        self.inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
-        self.seq_len_cached = None
-        self.cos_cached = None
-        self.sin_cached = None
-
-    def forward(self, x):
-        seq_len = x.shape[1]
-        if seq_len != self.seq_len_cached:
-            self.seq_len_cached = seq_len
-            t = torch.arange(seq_len, device=x.device).type_as(self.inv_freq)
-            freqs = torch.outer(t, self.inv_freq).to(x.device)
-            self.cos_cached = freqs.cos().bfloat16()
-            self.sin_cached = freqs.sin().bfloat16()
-        return self.cos_cached[None, :, None, :], self.sin_cached[None, :, None, :]
-
-def apply_rotary_emb(x, cos, sin):
-    assert x.ndim == 4 # multihead attention
-    d = x.shape[3]//2
-    x1 = x[..., :d]
-    x2 = x[..., d:]
-    y1 = x1 * cos + x2 * sin
-    y2 = x1 * (-sin) + x2 * cos
-    return torch.cat([y1, y2], 3).type_as(x)
-
 class LayerNorm(nn.Module):
     """LayerNorm but with an optional bias. PyTorch doesn't support simply bias=False"""
     def __init__(self, ndim, bias):
@@ -57,8 +30,6 @@ class CausalSelfAttention(nn.Module):
 
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=False)
-        self.c_proj.weight.data.zero_() # zero init suggested by @Grad62304977
-        self.rotary = Rotary(self.head_dim)
 
         # regularization
         self.attn_dropout = nn.Dropout(config.dropout)
@@ -79,10 +50,6 @@ class CausalSelfAttention(nn.Module):
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
 
-        cos, sin = self.rotary(q)
-        q, k = F.rms_norm(q, (q.size(-1),)), F.rms_norm(k, (k.size(-1),)) # QK norm suggested by @Grad62304977
-        q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)
-
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         # efficient attention using Flash Attention CUDA kernels
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
@@ -97,13 +64,13 @@ class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd, bias=False)
+        self.gelu    = nn.GELU()
         self.c_proj  = nn.Linear(4 * config.n_embd, config.n_embd, bias=False)
-        self.c_proj.weight.data.zero_() # zero init suggested by @Grad62304977
         self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
         x = self.c_fc(x)
-        x = F.relu(x).square() # https://arxiv.org/abs/2109.08668v2; ~1-2% better than GELU; suggested by @SKYLINEZ007 and @Grad62304977
+        x = self.gelu(x)
         x = self.c_proj(x)
         x = self.dropout(x)
         return x
@@ -337,7 +304,7 @@ class sample:
             self.model = torch.compile(self.model, backend="aot_eager") # requires PyTorch 2.0
 
     # use the model for generation or other tasks
-    def generate(self, encoded_text=None, length=100, temperature=0.7, top_k=50):
+    def generate(self, encoded_text=None, length=128, temperature=1, top_k=None):
         """
         `max_new_tokens`: number of tokens generated in each sample
         `temperature`: 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
