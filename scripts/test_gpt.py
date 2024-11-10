@@ -1,9 +1,12 @@
 import sys
 sys.path.insert(0, "D:\\Dev Projects\\WINTER")
 
+from colorama import Style, Fore, init
 from src.models.encoder import Encoder
 from src.models.gpt import sample
 import warnings, torch
+
+init(autoreset = True)
 
 # supress pytorch's future warning:
 # You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly.
@@ -29,7 +32,9 @@ test = [
 	None
 ]
 
-for i in test:
-	enctxt = enc.encode(i, allowed_special="all") if i != None else i
-	print(enc.decode(s.generate(enctxt)))
-	print("\n\n\n")
+def generate(text):
+	enctxt = enc.encode(text, allowed_special="all") if text != None else text
+	return enc.decode(s.generate(enctxt))
+
+out = [f"{Style.BRIGHT}{Fore.BLACK}```\n{generate(i)}\n```" for i in test]
+print("\n\n".join(out))
