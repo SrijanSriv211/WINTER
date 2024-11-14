@@ -1,15 +1,6 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-import sys
-import time
-import argparse
-import re
 from urllib.parse import urlparse
-
-import requests
 from bs4 import BeautifulSoup
-
+import requests, time, re
 
 DEFAULT_OUTPUT = 'output.txt'
 DEFAULT_INTERVAL = 5.0  # interval between requests (seconds)
@@ -19,17 +10,15 @@ USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, li
 visited_urls = set()  # all urls already visited, to not visit twice
 pending_urls = []  # queue
 
-
 def load_urls(session_file):
     """Resume previous session if any, load visited URLs"""
 
     try:
-        with open(session_file) as fin:
+        with open(session_file, "r", encoding="utf-8") as fin:
             for line in fin:
                 visited_urls.add(line.strip())
     except FileNotFoundError:
         pass
-
 
 def scrap(base_url, article, output_file, session_file):
     """Represents one request per article"""
@@ -37,10 +26,12 @@ def scrap(base_url, article, output_file, session_file):
     full_url = base_url + article
     try:
         r = requests.get(full_url, headers={'User-Agent': USER_AGENT})
+
     except requests.exceptions.ConnectionError:
         print("Check your Internet connection")
         input("Press [ENTER] to continue to the next request.")
         return
+
     if r.status_code not in (200, 404):
         print("Failed to request page (code {})".format(r.status_code))
         input("Press [ENTER] to continue to the next request.")
@@ -49,7 +40,7 @@ def scrap(base_url, article, output_file, session_file):
     soup = BeautifulSoup(r.text, 'html.parser')
     content = soup.find('div', {'id':'mw-content-text'})
 
-    with open(session_file, 'a') as fout:
+    with open(session_file, 'a', encoding="utf-8") as fout:
         fout.write(full_url + '\n')  # log URL to session file
 
     # add new related articles to queue
@@ -58,21 +49,28 @@ def scrap(base_url, article, output_file, session_file):
         href = a.get('href')
         if not href:
             continue
+
         if href[0:6] != '/wiki/':  # allow only article pages
             continue
+
         elif ':' in href:  # ignore special articles e.g. 'Special:'
             continue
+
         elif href[-4:] in ".png .jpg .jpeg .svg":  # ignore image files inside articles
             continue
+
         elif base_url + href in visited_urls:  # already visited
             continue
+
         if href in pending_urls:  # already added to queue
             continue
+
         pending_urls.append(href)
 
     # skip if already added text from this article, as continuing session
     if full_url in visited_urls:
         return
+
     visited_urls.add(full_url)
 
     parenthesis_regex = re.compile('\(.+?\)')  # to remove parenthesis content
@@ -87,7 +85,6 @@ def scrap(base_url, article, output_file, session_file):
             text = citations_regex.sub('', text)
             if text:
                 fout.write(text + '\n\n')  # extra line between paragraphs
-
 
 def main(initial_url, articles_limit, interval, output_file):
     """ Main loop, single thread """
@@ -107,8 +104,10 @@ def main(initial_url, articles_limit, interval, output_file):
             counter += 1
             if counter > articles_limit:
                 break
+
             try:
                 next_url = pending_urls.pop(0)
+
             except IndexError:
                 break
 
@@ -116,40 +115,15 @@ def main(initial_url, articles_limit, interval, output_file):
             article_format = next_url.replace('/wiki/', '')[:35]
             print("{:<7} {}".format(counter, article_format))
             scrap(base_url, next_url, output_file, session_file)
+
         except KeyboardInterrupt:
             input("\n> PAUSED. Press [ENTER] to continue...\n")
             counter -= 1
 
     print("Finished!")
-    sys.exit(0)
 
+n_articles = 1000
+interval = 5
+output = "wikitext.txt"
 
-if __name__ == '__main__':
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("initial_url", help="Initial Wikipedia article, e.g. https://en.wikipedia.org/wiki/Biology")
-    # parser.add_argument("-a", "--articles", nargs='?', default=DEFAULT_ARTICLES_LIMIT, type=int, help="Total number of articles")
-    # parser.add_argument("-i", "--interval", nargs='?', default=DEFAULT_INTERVAL, type=float, help="Interval between requests")
-    # parser.add_argument("-o", "--output", nargs='?', default=DEFAULT_OUTPUT, help="File output")
-    # args = parser.parse_args()
-    # main(args.initial_url, args.articles, args.interval, args.output)
-
-    n_articles = 1000
-    interval = 5
-    output = "wikitext.txt"
-    init_urls = [
-        "https://en.wikipedia.org/wiki/Rockstar_Games",
-        "https://en.wikipedia.org/wiki/Shah_Rukh_Khan",
-        "https://en.wikipedia.org/wiki/Wikipedia",
-        "https://en.wikipedia.org/wiki/ChatGPT",
-        "https://en.wikipedia.org/wiki/Elon_Musk",
-        "https://en.wikipedia.org/wiki/Isaac_Newton",
-        "https://en.wikipedia.org/wiki/Sonu_Nigam"
-    ]
-
-    for i in init_urls:
-        main(i, n_articles, interval, output)
-
-    print("saving pending urls")
-
-    with open(f"pending_{output}", "w", encoding="utf-8") as f:
-        f.write("\n".join(pending_urls))
+main("https://en.wikipedia.org/wiki/Tom_Cruise", n_articles, interval, output)
