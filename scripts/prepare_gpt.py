@@ -16,17 +16,17 @@ def get_foundational_dataset():
 	with open("data\\claw\\raw\\General notes.txt", "r", encoding="utf-8") as f:
 		data.append(f.read())
 
-	with open("data\\claw\\raw\\LLM data.txt", "r", encoding="utf-8") as f:
+	with open("data\\claw\\raw\\jokes.txt", "r", encoding="utf-8") as f:
 		data.append(f.read())
 
-	with open("data\\claw\\raw\\jokes.txt", "r", encoding="utf-8") as f:
+	with open("data\\claw\\raw\\LLM data.txt", "r", encoding="utf-8") as f:
 		data.append(f.read())
 
 	with open("data\\claw\\raw\\facts.txt", "r", encoding="utf-8") as f:
 		data.append(f.read())
 
-	with open("data\\claw\\raw\\webtext.txt", "r", encoding="utf-8") as f:
-		data.append(f.read()[:200_000_000])
+	with open("data\\claw\\raw\\wikitext.txt", "r", encoding="utf-8") as f:
+		data.append(f.read())
 
 	data = "\n\n".join(data)
 	print(f"{(len(data)/1e6)}M total chars", f"{(len(set(data)))} unique chars")
