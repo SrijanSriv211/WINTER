@@ -1,6 +1,7 @@
+scripts/config.json
 __pycache__/
 .venv/
 cache/
 data/
+res/
 bin/
-scripts/config.json
