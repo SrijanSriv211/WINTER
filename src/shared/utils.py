@@ -73,9 +73,12 @@ def prepare_data(encoded_data, path="data", data_division=1, convert_to_tensor=T
         n = int(data_division * len(data)) # the first (data_division * 100)% will be train, rest val
         train_data = data[:n]
         val_data = data[n:] if 0 < data_division < 1 else data[:n]
+        del data # free up some memory
 
         print(f"{(len(train_data)/1e6)}M", "train tokens,", f"{(len(val_data)/1e6)}M", "test tokens")
 
         # save the data
         save_distributed_data(path, "val", val_data, distribution)
+        del val_data # again free up some memory
+
     save_distributed_data(path, "train", train_data[:] if 0 < data_division < 1 else data[:], distribution)
