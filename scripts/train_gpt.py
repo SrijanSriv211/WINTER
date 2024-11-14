@@ -138,11 +138,11 @@ if CONFIG["load_from_file"]:
 else:
 	for i in os.listdir(CONFIG["train_data"]):
 		# try to load and check all the data
-		with open(f"{CONFIG["train_data"]}\\{i}.bin", "rb") as f:
+		with open(f"{CONFIG["train_data"]}\\{i}", "rb") as f:
 			train_data += len(pickle.load(f))
 
 	for i in os.listdir(CONFIG["val_data"]):
-		with open(f"{CONFIG["val_data"]}\\{i}.bin", "rb") as f:
+		with open(f"{CONFIG["val_data"]}\\{i}", "rb") as f:
 			val_data += len(pickle.load(f))
 
 data = train_data + val_data
@@ -162,6 +162,7 @@ def get_trained_model(model, optimizer):
 		"optimizer": optimizer.state_dict(),
 		"hyperparams": hyperparams,
 		"device": device,
+		"metrics": metrics,
 		"iter_num": iter_num,
 		"best_loss": best_loss
 	}
