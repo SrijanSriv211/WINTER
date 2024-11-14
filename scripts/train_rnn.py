@@ -79,6 +79,7 @@ def get_trained_model(model, optimizer):
 		"optimizer": optimizer.state_dict(),
 		"hyperparams": hyperparams,
 		"device": device,
+		"metrics": metrics,
 		"iter_num": iter_num,
 		"best_loss": best_loss
 	}
