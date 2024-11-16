@@ -26,9 +26,12 @@ enc = Encoder()
 enc.load("bin\\cl8k.bin")
 
 test = [
+	"Hello I'm a language model and ",
 	"Can I say that Calcia is really a branch of math or is it something nonsense",
 	"Every year the moon is going",
 	"o/ The workings of the Undetailed",
+	None,
+	None,
 	None
 ]
 
