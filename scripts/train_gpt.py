@@ -126,35 +126,37 @@ elif CONFIG["init_from"].startswith("pretrained,"):
 	model, optimizer, hyperparams, iter_num, best_loss, metrics = from_pretrained(torch.load(CONFIG["init_from"][11:]))
 
 # load all the files
-train_data, val_data = 0, 0
+train_data_len, val_data_len = 0, 0
 if CONFIG["load_from_file"]:
 	# try to load and check all the data
 	with open(CONFIG["train_data"], "rb") as f:
-		train_data = len(pickle.load(f))
+		train_data_len = len(pickle.load(f))
 
 	with open(CONFIG["val_data"], "rb") as f:
-		val_data = len(pickle.load(f))
+		val_data_len = len(pickle.load(f))
 
 else:
 	for i in os.listdir(CONFIG["train_data"]):
 		# try to load and check all the data
 		with open(f"{CONFIG["train_data"]}\\{i}", "rb") as f:
-			train_data += len(pickle.load(f))
+			print(train_data_len)
+			train_data_len += len(pickle.load(f))
 
 	for i in os.listdir(CONFIG["val_data"]):
 		with open(f"{CONFIG["val_data"]}\\{i}", "rb") as f:
-			val_data += len(pickle.load(f))
+			print(val_data_len)
+			val_data_len += len(pickle.load(f))
 
-data = train_data + val_data
+data_len = train_data_len + val_data_len
 
 # print the number of tokens
-print(f"{Fore.WHITE}{Style.BRIGHT}{(data/1e6)}M", "total tokens")
+print(f"{Fore.WHITE}{Style.BRIGHT}{(data_len/1e6)}M", "total tokens")
 print(
-	f"{Fore.WHITE}{Style.BRIGHT}{(train_data/1e6)}M", "train tokens,",
-	f"{Fore.WHITE}{Style.BRIGHT}{(val_data/1e6)}M", "test tokens",
-	f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if train_data == val_data else ""
+	f"{Fore.WHITE}{Style.BRIGHT}{(train_data_len/1e6)}M", "train tokens,",
+	f"{Fore.WHITE}{Style.BRIGHT}{(val_data_len/1e6)}M", "test tokens",
+	f"   {Fore.WHITE}{Style.DIM}(Using train tokens as test tokens)" if train_data_len == val_data_len else ""
 )
-del data, train_data, val_data # these are useless vars, delete them
+del data_len, train_data_len, val_data_len # these are useless vars, delete them
 
 def get_trained_model(model, optimizer):
 	return {

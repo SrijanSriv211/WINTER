@@ -26,4 +26,4 @@ def get_conversational_dataset():
 	with open("data\\claw\\raw\\claw.txt", "r", encoding="utf-8") as f:
 		return f.read()
 
-prepare_data(enc.encode(get_foundational_dataset(), allowed_special="all"), "data\\claw", 0.95, distribution=10_000_000)
+prepare_data(enc.encode(get_foundational_dataset(), allowed_special="all"), "data\\claw", 0.9, distribution=None)

@@ -81,4 +81,4 @@ def prepare_data(encoded_data, path="data", data_division=1, convert_to_tensor=T
         save_distributed_data(path, "val", val_data, distribution)
         del val_data # again free up some memory
 
-    save_distributed_data(path, "train", train_data[:] if 0 < data_division < 1 else data[:], distribution)
+    save_distributed_data(path, "train", train_data if 0 < data_division < 1 else data, distribution)
