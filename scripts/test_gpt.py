@@ -26,7 +26,8 @@ enc = Encoder()
 enc.load("bin\\cl8k.bin")
 
 test = [
-	"Hello I'm a language model and ",
+	"Google ",
+	"Hello I'm a language model, and ",
 	"Can I say that Calcia is really a branch of math or is it something nonsense",
 	"Every year the moon is going",
 	"o/ The workings of the Undetailed",
@@ -35,9 +36,7 @@ test = [
 	None
 ]
 
-def generate(text):
-	enctxt = enc.encode(text, allowed_special="all") if text != None else text
-	return enc.decode(s.generate(enctxt))
-
-out = [f"{Style.BRIGHT}{Fore.BLACK}```\n{generate(i)}\n```" for i in test]
-print("\n\n".join(out))
+for txt in test:
+	enctxt = enc.encode(txt, allowed_special="all") if txt != None else txt
+	out = enc.decode(s.generate(enctxt))
+	print(f"{Style.BRIGHT}{Fore.BLACK}```\n{out}\n```\n")
