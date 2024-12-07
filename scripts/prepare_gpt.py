@@ -3,27 +3,32 @@ sys.path.insert(0, "D:\\Dev Projects\\WINTER")
 
 from src.models.encoder import Encoder
 from src.shared.utils import prepare_data
-import os
+import json, os
 
 enc = Encoder()
 enc.load("bin\\cl8k.bin")
 
-def get_foundational_dataset():
-	data = []
+data = []
+files = os.listdir("data\\claw\\raw")
+files.remove("gpt-2.txt")
 
-	files = os.listdir("data\\claw\\raw")
-	files.remove("claw.txt")
+with open("data\\clis\\clis.json", "r", encoding="utf-8") as f:
+	o = json.load(f)
 
-	for i in files:
-		with open(f"data\\claw\\raw\\{i}", "r", encoding="utf-8") as f:
-			data.append(f.read()[:200_000_000] if i == "gpt-2.txt" else f.read())
+patterns = []
+for i in o:
+	if i["patterns"] == []:
+		continue
 
-	data = "\n\n".join(data)
-	print(f"{(len(data)/1e6)}M total chars", f"{(len(set(data)))} unique chars")
-	return data
+	patterns.extend(i["patterns"])
+data.append("\n".join(patterns))
+del patterns
 
-def get_conversational_dataset():
-	with open("data\\claw\\raw\\claw.txt", "r", encoding="utf-8") as f:
-		return f.read()
+for i in files:
+	with open(f"data\\claw\\raw\\{i}", "r", encoding="utf-8") as f:
+		data.append(f.read())
 
-prepare_data(enc.encode(get_foundational_dataset(), allowed_special="all"), "data\\claw", 0.9, distribution=None)
+data = "\n\n".join(data)
+print(f"{(len(data)/1e6)}M total chars", f"{(len(set(data)))} unique chars")
+
+prepare_data(enc.encode(data, allowed_special="all"), "data\\claw", 0.9, distribution=None)
