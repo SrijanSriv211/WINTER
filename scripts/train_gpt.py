@@ -68,18 +68,13 @@ def from_scratch():
 	return model, optimizer, hyperparams, iter_num, best_loss, metrics
 
 def from_pretrained(checkpoint):
-	# make loading pretrained models backwards compatible with previously trained models
-	metrics = [checkpoint[i] for i in ["metrics", "losses"] if i in checkpoint.keys()]
-	metrics = {
+	metrics = checkpoint["metrics"] if "metrics" in checkpoint.keys() else {
 		"train": [],
 		"eval": [],
 		"val": [],
 		"mfu": [],
 		"lr": []
-	} if not metrics else metrics[0]
-	for i in ["mfu", "lr"]:
-		if i not in metrics.keys():
-			metrics[i] = []
+	}
 
 	# load the state dict and current iteration number of the model
 	state_dict = checkpoint["model"]
@@ -126,14 +121,17 @@ elif CONFIG["init_from"].startswith("pretrained,"):
 	model, optimizer, hyperparams, iter_num, best_loss, metrics = from_pretrained(torch.load(CONFIG["init_from"][11:]))
 
 # load all the files
+train_data, val_data = None, None
 train_data_len, val_data_len = 0, 0
 if CONFIG["load_from_file"]:
 	# try to load and check all the data
 	with open(CONFIG["train_data"], "rb") as f:
-		train_data_len = len(pickle.load(f))
+		train_data = pickle.load(f)
+		train_data_len = len(train_data)
 
 	with open(CONFIG["val_data"], "rb") as f:
-		val_data_len = len(pickle.load(f))
+		val_data = pickle.load(f)
+		val_data_len = len(val_data)
 
 else:
 	for i in os.listdir(CONFIG["train_data"]):
@@ -170,12 +168,16 @@ def get_trained_model(model, optimizer):
 	}
 
 def _load_data(path):
-	if not CONFIG["load_from_file"]:
-		files = os.listdir(path)
-		random.shuffle(files)
+	if CONFIG["load_from_file"]:
+		return train_data if path == CONFIG["train_data"] else val_data
 
-	with open(f"{path}\\{files[0]}" if not CONFIG["load_from_file"] else path, "rb") as f:
-		return pickle.load(f)
+	else:
+		if not CONFIG["load_from_file"]:
+			files = os.listdir(path)
+			random.shuffle(files)
+
+		with open(f"{path}\\{files[0]}" if not CONFIG["load_from_file"] else path, "rb") as f:
+			return pickle.load(f)
 
 # data loading
 # generate a small batch of data of inputs x and targets y
@@ -244,7 +246,7 @@ start_time = time.time()
 eval_t0 = time.time()
 t0 = time.time()
 local_iter_num = 0 # number of iterations in the lifetime of this process
-running_mfu = -1.0
+running_mfu = -1.0 if metrics["mfu"] == [] else metrics["mfu"][-1]
 training_loop = True
 
 while training_loop:
