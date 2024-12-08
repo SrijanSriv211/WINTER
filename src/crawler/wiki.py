@@ -1,6 +1,6 @@
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
-import requests, time, re
+import wikipedia, requests, time, re
 
 DEFAULT_OUTPUT = 'output.txt'
 DEFAULT_INTERVAL = 5.0  # interval between requests (seconds)
@@ -73,18 +73,30 @@ def scrap(base_url, article, output_file, session_file):
 
     visited_urls.add(full_url)
 
-    parenthesis_regex = re.compile('\(.+?\)')  # to remove parenthesis content
-    citations_regex = re.compile('\[.+?\]')  # to remove citations, e.g. [1]
+    try:
+        title = article[5+1:].replace("_", " ")
+        wiki = wikipedia.page(title)
+        text = wiki.content.replace("==", "").replace("\n\n\n", "\n\n")[:-12]
+        text = "".join(text.split("\t\t"))
 
-    # get plain text from each <p>
-    p_list = content.find_all('p')
-    with open(output_file, 'a', encoding='utf-8') as fout:
-        for p in p_list:
-            text = p.get_text().strip()
-            text = parenthesis_regex.sub('', text)
-            text = citations_regex.sub('', text)
-            if text:
-                fout.write(text + '\n\n')  # extra line between paragraphs
+        with open(output_file, "a", encoding="utf-8") as f:
+            f.write(text + "\n")
+
+    except Exception:
+        parenthesis_regex = re.compile('\(.+?\)')  # to remove parenthesis content
+        citations_regex = re.compile('\[.+?\]')  # to remove citations, e.g. [1]
+
+        # get plain text from each <p>
+        p_list = content.find_all('p')
+        with open(output_file, 'a', encoding='utf-8') as fout:
+            for p in p_list:
+                text = p.get_text().strip()
+                text = parenthesis_regex.sub('', text)
+                text = citations_regex.sub('', text)
+                if text:
+                    text = " ".join(text.split()).replace(" , ", ", ").replace(",,", ",").replace(" . ", ". ")
+                    fout.write(text + "\n")  # extra line between paragraphs
+            fout.write("\n\n")  # extra line between paragraphs
 
 def main(initial_url, articles_limit, interval, output_file):
     """ Main loop, single thread """
@@ -122,8 +134,21 @@ def main(initial_url, articles_limit, interval, output_file):
 
     print("Finished!")
 
-n_articles = 1000
+n_articles = 500
 interval = 5
 output = "wikitext.txt"
 
-main("https://en.wikipedia.org/wiki/Tom_Cruise", n_articles, interval, output)
+init = [
+    "https://en.wikipedia.org/wiki/Shah_Rukh_Khan",
+    "https://en.wikipedia.org/wiki/Tom_Cruise",
+    "https://en.wikipedia.org/wiki/Rockstar_Games",
+    "https://en.wikipedia.org/wiki/Tony_Stark_(Marvel_Cinematic_Universe)",
+    "https://en.wikipedia.org/wiki/Google",
+    "https://en.wikipedia.org/wiki/Elon_Musk",
+    "https://en.wikipedia.org/wiki/Isaac_Newton",
+    "https://en.wikipedia.org/wiki/Apple_Inc.",
+    "https://en.wikipedia.org/wiki/Steve_Jobs",
+    "https://en.wikipedia.org/wiki/Tesla,_Inc."
+]
+
+[main(i, n_articles, interval, output) for i in init]
