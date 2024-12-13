@@ -76,8 +76,8 @@ def scrap(base_url, article, output_file, session_file):
     try:
         title = article[5+1:].replace("_", " ")
         wiki = wikipedia.page(title)
-        text = wiki.content.replace("==", "").replace("\n\n\n", "\n\n")[:-12]
-        text = "".join(text.split("\t\t"))
+        text = "".join(wiki.content.split("\t"))
+        text = text.replace("==", "").replace("\n\n", "\n")[:-12]
 
         with open(output_file, "a", encoding="utf-8") as f:
             f.write(text + "\n")
@@ -151,4 +151,6 @@ init = [
     "https://en.wikipedia.org/wiki/Tesla,_Inc."
 ]
 
-[main(i, n_articles, interval, output) for i in init]
+for i in init:
+    main(i, n_articles, interval, output)
+    pending_urls = []
