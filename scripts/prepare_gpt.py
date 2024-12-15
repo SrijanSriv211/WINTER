@@ -10,7 +10,6 @@ enc.load("bin\\cl8k.bin")
 
 data = []
 files = os.listdir("data\\claw\\raw")
-files.remove("gpt-2.txt")
 
 with open("data\\clis\\clis.json", "r", encoding="utf-8") as f:
 	o = json.load(f)
@@ -31,4 +30,4 @@ for i in files:
 data = "\n\n".join(data)
 print(f"{(len(data)/1e6)}M total chars", f"{(len(set(data)))} unique chars")
 
-prepare_data(enc.encode(data, allowed_special="all"), "data\\claw", 0.9, distribution=None)
+prepare_data(enc.encode(data, allowed_special="all"), "data\\claw", 0.8, distribution=None)
