@@ -148,7 +148,8 @@ init = [
     "https://en.wikipedia.org/wiki/Isaac_Newton",
     "https://en.wikipedia.org/wiki/Apple_Inc.",
     "https://en.wikipedia.org/wiki/Steve_Jobs",
-    "https://en.wikipedia.org/wiki/Tesla,_Inc."
+    "https://en.wikipedia.org/wiki/Tesla,_Inc.",
+    "https://en.wikipedia.org/wiki/OpenAI"
 ]
 
 for i in init:
