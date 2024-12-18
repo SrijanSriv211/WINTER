@@ -273,7 +273,7 @@ while training_loop:
 				f"{Fore.RESET}{Style.RESET_ALL},",
 				f"val loss {Fore.WHITE}{Style.BRIGHT}{losses["val"]:.4f}"
 				f"{Fore.RESET}{Style.RESET_ALL},",
-				f"lr {Fore.WHITE}{Style.BRIGHT}{lr:.4f}"
+				f"lr {Fore.WHITE}{Style.BRIGHT}{lr:.7f}"
 				f"{Fore.RESET}{Style.RESET_ALL},",
 				f"time took {Fore.BLACK}{Style.BRIGHT}{calc_total_time(eval_dt)}"
 			)
