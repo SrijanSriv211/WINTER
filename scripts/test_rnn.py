@@ -2,7 +2,7 @@ import sys
 sys.path.insert(0, "D:\\Dev Projects\\WINTER")
 
 from src.shared.nltk_utils import one_hot_encoding
-from src.models.encoder import Encoder
+from src.encoder.bytepair import Encoder
 from colorama import Style, Fore, init
 from src.models.rnn import sample
 import warnings, pickle, torch
