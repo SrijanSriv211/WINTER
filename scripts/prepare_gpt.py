@@ -1,12 +1,14 @@
 import sys
 sys.path.insert(0, "D:\\Dev Projects\\WINTER")
 
-from src.models.encoder import Encoder
+# from src.encoder.bytepair import Encoder
+from src.encoder.char import Encoder
 from src.shared.utils import prepare_data
 import json, os
 
 enc = Encoder()
-enc.load("bin\\cl8k.bin")
+# enc.load("bin\\cl8k.bin")
+enc.load("bin\\cl140.bin")
 
 data = []
 files = os.listdir("data\\claw\\raw")
