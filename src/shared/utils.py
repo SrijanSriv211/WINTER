@@ -49,13 +49,16 @@ def save_distributed_data(path, name, data, distribution):
         if not os.path.isdir(f"{path}\\{name}"):
             os.mkdir(f"{path}\\{name}")
 
-        count = 0
-        for i in range(0, len(data), distribution):
-            distributed_data.append((f"{path}\\{name}\\{count}.bin", data[i:i+distribution]))
+        count = 1
+        for i in range(0, len(data), int(len(data) / distribution)):
+            d = data[i:i+distribution]
+            print(f"{len(d)}: [{i}:{i+distribution}]", f"{path}\\{name}\\{count}.bin")
+            distributed_data.append((f"{path}\\{name}\\{count}.bin", d))
             count += 1
 
     else:
         distributed_data.append((f"{path}\\{name}.bin", data))
+    del data
 
     # save the data
     for p, d in distributed_data:
