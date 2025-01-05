@@ -65,6 +65,7 @@ class Encoder:
 		"""
 		assert vocab_size >= 256
 		assert 1 <= batch_size <= vocab_size
+		start_time = time.time()
 
 		if is_file:
 			with open(text, "r", encoding="utf-8") as f:
@@ -81,7 +82,6 @@ class Encoder:
 		del text_chunks
 
 		print("training on vocab size", f"{Fore.WHITE}{Style.BRIGHT}{vocab_size}")
-		start_time = time.time()
 		last_print_time = time.time()
 
 		merges = {}
