@@ -2,7 +2,7 @@ import sys
 sys.path.insert(0, "D:\\Dev Projects\\WINTER")
 
 from colorama import Style, Fore, init
-from src.encoder.char import Encoder
+from src.encoder.word import Encoder
 from src.models.gpt import sample
 import warnings, torch
 
@@ -23,7 +23,7 @@ s = sample()
 s.load(torch.load(sys.argv[1]), True)
 
 enc = Encoder()
-enc.load("bin\\cl140.bin")
+enc.load("bin\\cl7k.bin")
 
 test = [
 	"Google ",

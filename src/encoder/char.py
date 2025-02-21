@@ -26,6 +26,8 @@ class Encoder:
 
 		# create a mapping from characters to integers
 		self.vocab = { ch: i for i, ch in enumerate(chars) } # char -> idx
+		# print the total time taken to do all the merges
+		print("time taken: ", f"{Fore.WHITE}{Style.BRIGHT}{calc_total_time(time.time()-start_time)}")
 
 	# special_tokens is a dictionary of str -> int
 	# example: {"<|endoftext|>": 100257}
@@ -46,7 +48,7 @@ class Encoder:
 
 			else:
 				raise ValueError(f"invalid token id: {idx}")
-			
+
 		return "".join(part_bytes)
 
 	def encode_ordinary(self, text):
@@ -89,7 +91,7 @@ class Encoder:
 
 		else:
 			raise ValueError(f"allowed_special={allowed_special} not understood")
-		
+
 		# shortcut: if no special tokens, just use the ordinary encoding
 		if not special:
 			return self.encode_ordinary(text)

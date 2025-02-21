@@ -13,7 +13,7 @@ llm = GROQ(
     "Reply with maximum of 20 words in general.",
 
     GroqAPI_path = "bin\\cache\\GroqAPI.txt",
-    conversation_path = "bin\\cache\\claw.txt")
+    conversation_path = "bin\\cache\\GATw.txt")
 
 while True:
     try:

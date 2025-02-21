@@ -86,17 +86,17 @@ First create a `json` file in scripts folder called `config.json` with the follo
 {
 	"GPT": {
 		"load_from_file": false,
-		"train_data": "data\\claw\\train",
-		"val_data": "data\\claw\\val",
-		"init_from": "pretrained,bin\\claw.bin",
+		"train_data": "data\\GATw\\train",
+		"val_data": "data\\GATw\\val",
+		"init_from": "pretrained,bin\\GATw.bin",
 		// "init_from": "scratch",
 
 		"checkpoints": {
 			"path": "bin\\ck",
-			"name": "claw",
+			"name": "GATw",
 			"interval": 200
 		},
-		"save_path": "bin\\claw.bin",
+		"save_path": "bin\\GATw.bin",
 
 		"max_iters": 2000,
 		"eval_interval": 200,

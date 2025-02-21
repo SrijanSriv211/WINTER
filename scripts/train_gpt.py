@@ -78,7 +78,7 @@ def from_pretrained(checkpoint):
 
 	# load the state dict and current iteration number of the model
 	state_dict = checkpoint["model"]
-	iter_num = checkpoint["iter_num"]
+	iter_num = checkpoint["iter_num"] + 1
 	best_loss = checkpoint["best_loss"] if "best_loss" in checkpoint.keys() else 0
 
 	hyperparams = dict(dropout=CONFIG["dropout"])
