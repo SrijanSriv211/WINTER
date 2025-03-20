@@ -134,22 +134,43 @@ def main(initial_url, articles_limit, interval, output_file):
 
     print("Finished!")
 
-n_articles = 500
-interval = 5
-output = "wikitext.txt"
+n_articles = 1
+interval = 1
+output = "wiki.txt"
 
 init = [
     "https://en.wikipedia.org/wiki/Shah_Rukh_Khan",
+    "https://en.wikipedia.org/wiki/India",
     "https://en.wikipedia.org/wiki/Tom_Cruise",
+    "https://en.wikipedia.org/wiki/Dan_Houser",
+    "https://en.wikipedia.org/wiki/Sam_Houser",
+    "https://en.wikipedia.org/wiki/Take-Two_Interactive",
+    "https://en.wikipedia.org/wiki/New_York_City",
+    "https://en.wikipedia.org/wiki/Grand_Theft_Auto",
+    "https://en.wikipedia.org/wiki/Red_Dead",
+    "https://en.wikipedia.org/wiki/Midnight_Club",
     "https://en.wikipedia.org/wiki/Rockstar_Games",
     "https://en.wikipedia.org/wiki/Tony_Stark_(Marvel_Cinematic_Universe)",
+    "https://en.wikipedia.org/wiki/Robert_Downey_Jr.",
+    "https://en.wikipedia.org/wiki/Marvel_Cinematic_Universe",
     "https://en.wikipedia.org/wiki/Google",
+    "https://en.wikipedia.org/wiki/YouTube",
     "https://en.wikipedia.org/wiki/Elon_Musk",
     "https://en.wikipedia.org/wiki/Isaac_Newton",
     "https://en.wikipedia.org/wiki/Apple_Inc.",
     "https://en.wikipedia.org/wiki/Steve_Jobs",
     "https://en.wikipedia.org/wiki/Tesla,_Inc.",
-    "https://en.wikipedia.org/wiki/OpenAI"
+    "https://en.wikipedia.org/wiki/Facebook",
+    "https://en.wikipedia.org/wiki/Mark_Zuckerberg",
+    "https://en.wikipedia.org/wiki/Harvard_College",
+    "https://en.wikipedia.org/wiki/OpenAI",
+    "https://en.wikipedia.org/wiki/DALL-E",
+    "https://en.wikipedia.org/wiki/Sora_(text-to-video_model)",
+    "https://en.wikipedia.org/wiki/Artificial_intelligence",
+    "https://en.wikipedia.org/wiki/Sam_Altman",
+    "https://en.wikipedia.org/wiki/Bill_Gates"
+    "https://en.wikipedia.org/wiki/Warren_Buffett",
+    "https://en.wikipedia.org/wiki/Michael_Jackson"
 ]
 
 for i in init:
