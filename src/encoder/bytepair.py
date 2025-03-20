@@ -1,7 +1,6 @@
 from ..shared.utils import calc_total_time
 from colorama import init, Fore, Style
 from collections import Counter
-from itertools import chain
 import pickle, regex, time
 
 init(autoreset=True)
@@ -55,49 +54,63 @@ class Encoder:
 		self.inverse_special_tokens = {}
 		self.vocab = {idx: bytes([idx]) for idx in range(256)} # idx -> bytes
 
-	def train(self, text, vocab_size, batch_size=10, drop_bounds_after=0, is_file=False):
+	def train(self, filename, vocab_size=256, batch_size=10, do_merge=True):
 		"""
-		- text: text dataset to train the tokenizer on
-		- is_file: if the given text data is raw strings or a text file to load
 		- vocab_size: max number of merges to be made - 256 bytes
 		- batch_size: how many merges to be made before replacing all the made merges in encoded sequence
-		- drop_bounds_after: dropout regex boundaries after `n` merges (default: 0 means no dropout)
 		"""
+		self.do_merge = do_merge
 		assert vocab_size >= 256
 		assert 1 <= batch_size <= vocab_size
 		start_time = time.time()
 
-		if is_file:
-			with open(text, "r", encoding="utf-8") as f:
-				text = f.read()
+		with open(filename, "r", encoding="utf-8") as f:
+			text = f.read()
 
 		print(
 			"encoding text with", f"{Fore.WHITE}{Style.BRIGHT}{len(text)/1e6}M", "characters and",
 			f"{Fore.WHITE}{Style.BRIGHT}{len(set(text))}", "unique characters"
 		)
-		text_chunks: list[str] = regex.findall(self.compiled_pattern, text)
-		del text
-		print(f"encoding text chunks... {Fore.BLACK}{Style.BRIGHT}(takes a ~minute)")
-		ids = [list(ch.encode("utf-8")) for ch in text_chunks]
-		del text_chunks
 
+		# here are all the unique word that occur in this text
+		f256_chr = [chr(idx) for idx in range(256)] # first 256 chars
+		t_chr = sorted(list(set(list(text) + f256_chr))) # all text chars
+		lt_chr = len(t_chr) # len of all text chars
+		text_chunks = regex.findall(self.compiled_pattern, text) # text tokenized by regex
+		del f256_chr, text
+
+		print(f"encoding text chunks... {Fore.BLACK}{Style.BRIGHT}(takes a ~minute)")
+
+		if self.do_merge:
+			self.vocab = {i: ch.encode("utf-8") for i, ch in enumerate(t_chr)} # word -> idx
+			inverse_vocab = {v: k for k, v in self.vocab.items()}
+			ids = [[inverse_vocab[i.encode("utf-8")] for i in ch] for ch in text_chunks]
+
+			del inverse_vocab, text_chunks, t_chr
+			self._merge_bytepairs(ids, vocab_size, batch_size, lt_chr)
+
+		else:
+			text_chunks = list(set(text_chunks + t_chr))
+			self.vocab = {i: ch.encode("utf-8") for i, ch in enumerate(text_chunks)} # word -> idx
+
+		# print the total time taken to do all the merges
+		print("vocab size:", f"{Fore.WHITE}{Style.BRIGHT}{len(self.vocab)}")
+		print("time taken:", f"{Fore.WHITE}{Style.BRIGHT}{calc_total_time(time.time()-start_time)}")
+
+	def _merge_bytepairs(self, ids, vocab_size, batch_size, lt_chr):
 		print("training on vocab size", f"{Fore.WHITE}{Style.BRIGHT}{vocab_size}")
 		last_print_time = time.time()
 
-		merges = {}
-
-		def can_drop_bounds(i):
-			return i >= drop_bounds_after and drop_bounds_after > 0
-
 		# count the number of times every consecutive pair appears
 		i = 0
-		n_merges = vocab_size - 256
+		merges = {}
+		n_merges = vocab_size - lt_chr
 		while i < n_merges:
 			# passing in stats will update it in place, adding up counts
 			# get the pairs with the highest counts
-			for pair, occurrences in self._get_conditional_stats(ids, most_common=batch_size).items() if can_drop_bounds(i) else get_stats(ids, most_common=batch_size).items():
+			for pair, occurrences in get_stats(ids, most_common=batch_size).items():
 				# mint a new token: assign it the next available id
-				idx = 256 + i
+				idx = lt_chr + i
 
 				# save the merge
 				merges[pair] = idx
@@ -116,39 +129,18 @@ class Encoder:
 				)
 				last_print_time = time.time()
 				i += 1
-				if i == drop_bounds_after or i >= n_merges:
+
+				if i >= n_merges:
 					break
 
-			# flatten ids if it is a list of lists (ids from with-bounds-merges)
-			if can_drop_bounds(i) and isinstance(ids, list) and len(ids) > 0 and isinstance(ids[0], list):
-				print("dropping regex boundaries")
-				ids = list(chain.from_iterable(ids))
-
 			# replace all occurrences of pair in ids with idx
-			# ids = [merge(chunk_ids, merges) for chunk_ids in ids]
-			ids = merge(ids, merges) if can_drop_bounds(i) else [merge(chunk_ids, merges) for chunk_ids in ids]
-
-			if i >= n_merges:
-				break
-
-		# print the total time taken to do all the merges
-		print("time taken: ", f"{Fore.WHITE}{Style.BRIGHT}{calc_total_time(time.time()-start_time)}")
-
-	# a few helper functions useful for both Encoder
-	def _get_conditional_stats(self, ids, most_common=-1):
-		stats = Counter([
-			pair
-			for pair in zip(ids, ids[1:])
-			if self.decode(list(pair)).replace(" ", "").isalpha()
-		])
-
-		return dict(stats.most_common(most_common) if most_common > 0 else stats)
+			ids = [merge(chunk_ids, merges) for chunk_ids in ids]
 
 	# special_tokens is a dictionary of str -> int
 	# example: {"<|endoftext|>": 100257}
-	def register_special_tokens(self, special_tokens: dict):
-		self.special_tokens = special_tokens
-		self.inverse_special_tokens = {v: k for k, v in special_tokens.items()}
+	def register_special_tokens(self, *special_tokens):
+		self.special_tokens = dict([(x, i + len(self.vocab)) for i, x in enumerate(special_tokens)])
+		self.inverse_special_tokens = {v: k for k, v in self.special_tokens.items()}
 
 	# given ids (list of integers), return Python string
 	def decode(self, ids):
@@ -200,15 +192,26 @@ class Encoder:
 		# all chunks of text are encoded separately, then results are joined
 		ids = []
 
-		inverse_sorted_vocab = {v: k for k, v in self.vocab.items()}
+		inverse_vocab = {v: k for k, v in self.vocab.items()}
 		for chunk in text_chunks:
 			chunk_bytes = chunk.encode("utf-8") # raw bytes
-			chunk_ids = self._encode_chunk(chunk_bytes, inverse_sorted_vocab)
-			ids.extend(chunk_ids)
+
+			if self.do_merge:
+				chunk_ids = self._encode_chunk(chunk_bytes, inverse_vocab)
+				ids.extend(chunk_ids)
+				continue
+
+			# if self.do_merge == False
+			if chunk_bytes in inverse_vocab:
+				ids.append(inverse_vocab[chunk_bytes])
+
+			else:
+				for ch in list(chunk_bytes.decode()):
+					ids.append(inverse_vocab[ch.encode("utf-8")] if ch.encode("utf-8") in inverse_vocab else len(inverse_vocab) + len(self.special_tokens) + 10)
 
 		return ids
 
-	def encode(self, text, allowed_special="none_raise"):
+	def encode(self, text, allowed_special="none_raise", do_merge=True):
 		"""
 		Unlike encode_ordinary, this function handles special tokens.
 		- allowed_special: can be "all"|"none"|"none_raise" or a custom set of special tokens
@@ -272,7 +275,8 @@ class Encoder:
 			pickle.dump({
 				"pattern": self.pattern,
 				"special": self.special_tokens,
-				"vocab": self.vocab
+				"vocab": self.vocab,
+				"do_merge": self.do_merge
 			}, f)
 
 	def load(self, checkpoint: str):
@@ -284,3 +288,4 @@ class Encoder:
 		self.special_tokens = model["special"]
 		self.inverse_special_tokens = {v: k for k, v in self.special_tokens.items()}
 		self.vocab = model["vocab"]
+		self.do_merge = model["do_merge"]
