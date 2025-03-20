@@ -2,7 +2,7 @@ import sys
 sys.path.insert(0, "D:\\Dev Projects\\WINTER")
 
 from colorama import Style, Fore, init
-from src.encoder.word import Encoder
+from src.encoder.bytepair import Encoder
 from src.models.gpt import sample
 import warnings, torch
 
@@ -23,7 +23,7 @@ s = sample()
 s.load(torch.load(sys.argv[1]), True)
 
 enc = Encoder()
-enc.load("bin\\cl7k.bin")
+enc.load("bin\\cl1k.bin")
 
 test = [
 	"Google ",
@@ -31,6 +31,8 @@ test = [
 	"Can I say that Calcia is really a branch of math or is it something nonsense",
 	"Every year the moon is going",
 	"o/ The workings of the Undetailed",
+	"Hi!\n<|sot|>",
+	"Hello buddy.\n<|sot|>",
 	None,
 	None,
 	None

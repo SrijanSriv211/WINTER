@@ -16,7 +16,7 @@ class GROQ:
 
         self.client = Groq(api_key = GROQ_API_KEY)
 
-    def generate(self, text, model_name = "llama3-70b-8192"):
+    def generate(self, text, model_name = "gemma2-9b-it"):
         text = "Human: " + text
         self.prompt.append(text)
 

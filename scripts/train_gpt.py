@@ -211,20 +211,20 @@ def estimate_loss(eval_iters):
 
 # learning rate decay scheduler (cosine with warmup)
 def get_lr(it):
-	# 1) linear warmup for warmup_iters steps
-	if it < CONFIG["warmup_iters"]:
-		return CONFIG["learning_rate"] * it / CONFIG["warmup_iters"]
+    # 1) linear warmup for warmup_iters steps
+    if it < CONFIG["warmup_iters"]:
+        return CONFIG["learning_rate"] * (it + 1) / (CONFIG["warmup_iters"] + 1)
 
-	# 2) if it > lr_decay_iters, return min learning rate
-	if it > CONFIG["lr_decay_iters"]:
-		return CONFIG["min_lr"]
+    # 2) if it > lr_decay_iters, return min learning rate
+    if it > CONFIG["lr_decay_iters"]:
+        return CONFIG["min_lr"]
 
-	# 3) in between, use cosine decay down to min learning rate
-	decay_ratio = (it - CONFIG["warmup_iters"]) / (CONFIG["lr_decay_iters"] - CONFIG["warmup_iters"])
+    # 3) in between, use cosine decay down to min learning rate
+    decay_ratio = (it - CONFIG["warmup_iters"]) / (CONFIG["lr_decay_iters"] - CONFIG["warmup_iters"])
 
-	assert 0 <= decay_ratio <= 1
-	coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
-	return CONFIG["min_lr"] + coeff * (CONFIG["learning_rate"] - CONFIG["min_lr"])
+    assert 0 <= decay_ratio <= 1
+    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
+    return CONFIG["min_lr"] + coeff * (CONFIG["learning_rate"] - CONFIG["min_lr"])
 
 # report number of parameters
 print(f"{Fore.WHITE}{Style.BRIGHT}{model.get_num_params()/1e6}M", "parameters")

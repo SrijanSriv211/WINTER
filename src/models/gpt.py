@@ -303,7 +303,7 @@ class sample:
             self.model = torch.compile(self.model, backend="aot_eager") # requires PyTorch 2.0
 
     # use the model for generation or other tasks
-    def generate(self, encoded_text=None, length=128, temperature=1, top_k=None):
+    def generate(self, encoded_text=None, length=1024, temperature=0.7, top_k=50):
         """
         `max_new_tokens`: number of tokens generated in each sample
         `temperature`: 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
