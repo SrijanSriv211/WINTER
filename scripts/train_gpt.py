@@ -22,7 +22,8 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 init(autoreset=True)
 
-with open("scripts\\config.json", "r", encoding="utf-8") as f:
+CONFIG_PATH = sys.argv[1] if len(sys.argv) > 1 else "scripts\\config.json"
+with open(CONFIG_PATH, "r", encoding="utf-8") as f:
 	CONFIG = json.load(f)["GPT"]
 
 device = ("cuda" if torch.cuda.is_available() else "cpu") if CONFIG["device"] == "auto" else CONFIG["device"]
@@ -374,7 +375,7 @@ while training_loop:
 
 			elif inp == "r":
 				print(f"{Fore.YELLOW}{Style.BRIGHT}config.json{Style.RESET_ALL} reloaded.")
-				with open("scripts\\config.json", "r", encoding="utf-8") as f:
+				with open(CONFIG_PATH, "r", encoding="utf-8") as f:
 					CONFIG = json.load(f)["GPT"]
 
 			else:
